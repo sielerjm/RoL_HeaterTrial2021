@@ -1,0 +1,224 @@
+---
+title: "Clean Metadata"
+author: "Michael Sieler"
+date: "2022-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Libraries
+library(readxl)
+
+# Paths
+
+# Check project file location is in correct directory
+proj.path <- getwd()
+source(paste0(proj.path,"/../../Code/Functions/StartFunctions/plot_settings.R"))
+
+```
+
+
+## Load Metadata
+
+```{r}
+
+metadata <- readRDS(paste0(getwd(),"/../../Data/Metadata/metadata.RDS"))
+View(metadata)
+
+```
+
+
+## Overview
+
+We have an even distribution, at least one fish per sex per treatment at all time points (except 14 DPE, 32 deg, Control, Male).
+
+```{r}
+
+metadata %>% 
+  filter(!is.na(Sex)) %>%
+  group_by(DPE, Treatment, Temperature, Sex) %>%
+  count() %>%
+  ggplot(aes(x = as.factor(DPE))) +
+  geom_bar(aes(fill = Sex), position = position_dodge2(preserve = "single")) +
+  facet_grid(Treatment~Temperature, scales = "free") +
+  labs(title = "Distribution of Male and Female Fish across Temperature and Treatment",
+       y = "Count",
+       x = "Days post exposure (DPE)") +
+  theme(legend.position = "bottom") + 
+  scale_fill_manual(values = pal.Dark2) 
+
+```
+
+## Infection
+
+Does temperature affect infection? Furthermore, does sex or days post exposure matter?
+
+
+### Plots
+
+```{r}
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  # group_by(Temperature, DPE) %>%
+  # summarize(Count = sum(Total.Worm.Count)) %>%
+  # replace(is.na(.), 0) %>%
+  ggplot(aes(x = Total.Worm.Count)) +
+  geom_bar(aes(fill = as.factor(DPE)), position = position_dodge2(preserve = "single")) +
+  # facet_grid(DPE~., scales = "free") +
+  labs(title = "Distribution worm counts",
+       y = "Counts",
+       x = "Number of Worms",
+       fill = "DPE") +
+  theme(legend.position = "bottom") + 
+  scale_fill_manual(values = pal.Dark2)
+
+```
+
+
+```{r}
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, DPE) %>%
+  summarize(Count = sum(Total.Worm.Count)) %>% 
+  replace(is.na(.), 0) %>%
+  ggplot(aes(x = as.factor(DPE), y = Count, group = Temperature)) +
+  geom_point(aes(color = Temperature), na.rm = FALSE) +
+  geom_line(aes(color = Temperature), na.rm = FALSE) +
+  geom_label_repel(aes(label = Count)) +
+  # facet_grid(Sex~., scales = "free") +
+  labs(title = "Distribution worm counts across temperature") +
+  theme(legend.position = "bottom") + 
+  scale_color_manual(values = pal.Spectral[c(3,2,1)])
+
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, Sex, DPE) %>%
+  summarize(Count = sum(Total.Worm.Count)) %>% 
+  replace(is.na(.), 0) %>%
+  ggplot(aes(x = as.factor(DPE), y = Count, group = Temperature)) +
+  geom_point(aes(color = Temperature), na.rm = FALSE) +
+  geom_line(aes(color = Temperature), na.rm = FALSE) +
+  geom_label_repel(aes(label = Count)) +
+  facet_grid(Sex~., scales = "free") +
+  labs(title = "Distribution worm counts across temperature") +
+  theme(legend.position = "bottom") + 
+  scale_color_manual(values = pal.Spectral[c(3,2,1)])
+
+
+```
+
+
+```{r}
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, DPE, Sex) %>%
+  count() %>%
+  left_join(., metadata %>%
+    filter(Treatment == "Exposed") %>%
+    filter(!is.na(Sex)) %>% 
+    group_by(Temperature, DPE, Sex) %>%
+    summarize(Total.Worms = sum(Total.Worm.Count))
+  ) 
+```
+
+
+```{r}
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, DPE, Sex) %>%
+  count() %>%
+  left_join(., metadata %>%
+    filter(Treatment == "Exposed") %>%
+    filter(!is.na(Sex)) %>% 
+    group_by(Temperature, DPE, Sex) %>%
+    summarize(Total.Worms = sum(Total.Worm.Count))
+  ) %>%
+  summarize(Prop = Total.Worms / n) %>% 
+  replace(is.na(.), 0) %>%
+  ggplot(aes(x = as.factor(DPE), y = Prop, group = Temperature)) +
+  geom_point(aes(color = Temperature), na.rm = FALSE) +
+  geom_line(aes(color = Temperature), na.rm = FALSE) +
+  geom_label_repel(aes(label = round(Prop, 3))) +
+  facet_grid(Sex~., scales = "free") +
+  labs(title = "Number of worms per fish between meales and females across DPE and temperature",
+       y = "Number of worms per fish", 
+       x = "Days post exposure (DPE)",
+       caption = "num = worm.count / num.fish") +
+  theme(legend.position = "bottom") + 
+  scale_color_manual(values = pal.Spectral[c(3,2,1)]) +
+  scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+                       limits = c(0, 10))
+
+
+```
+
+
+
+
+### Stats
+
+Number of worms appears to follow a negative binomial distribution. 
+
+```{r}
+
+mod.1 <- glm.nb(formula = Total.Worm.Count ~ Temperature*DPE*Sex, data = metadata) 
+mod.2 <- glm.nb(formula = Total.Worm.Count ~ Temperature*DPE*Sex + (1|Tank.ID), data = metadata) 
+
+anova(mod.1, mod.2)
+
+mod.1 %>%
+  anova() %>% 
+  tidy() %>% 
+  arrange(p.value) %>%
+  flextable() %>%
+  flextable_helperFuncs(col.round = c(3, 5))
+
+```
+
+
+
+```{r}
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  filter(!is.na(Sex)) %>% 
+  mutate(DPE = as.numeric(DPE)) %>%
+  group_by(Temperature, DPE, Sex) %>%
+  count() %>%
+  left_join(., metadata %>%
+    filter(Treatment == "Exposed") %>%
+    filter(!is.na(Sex)) %>% 
+    mutate(DPE = as.numeric(DPE)) %>%
+    group_by(Temperature, DPE, Sex) %>%
+    summarize(Total.Worms = sum(Total.Worm.Count))
+  ) %>%
+  summarize(Prop = Total.Worms / n) %>%
+  glm.nb(formula = Prop ~ Temperature*DPE*Sex) %>% 
+  anova() %>% 
+  tidy() %>% 
+  arrange(p.value) %>%
+  flextable() %>%
+  flextable_helperFuncs(col.round = c(3, 5))
+
+```
+
+
+
+
+
+### Summary
+
+Our results suggest that temperature and sex influence number of total worms in fish. Pathogens were more prolific in fish exposed to 28 degrees Celsius temperatures, followed by 32 and finally 35. We observed virtually no infections in fish exposed to 35 degrees. We also find that male fish were more infected than females. Additionally, we find an interaction effect between temperature and days post exposure, but it did not meet our threshold for significance. However, when we normalized number of worms per sex of fish, we observe a significant main effect of temperature and a significant interaction effect between temperature and sex, but sex is no longer a significant main effect. Infection burden appears to peak at 14 and 21 days in the 28 and 32 degree groups, respectively. Collectively, these results indicate that temperature and sex play a role in total worm counts. 
+
+We found that temperature and sex influenced number of worms found in fish. In particular, it appears that fish exposed to a pathogen at higher temps fair better, and female fish fair better than males. However, this experiment was only conducted under one generation of fish, and we do not know if subsequent generations would fair similarly. Perhaps in subsequent generations, the pathogen would adapt to the higher temperatures and infect fish at the higher temperatures. 

@@ -1,0 +1,77 @@
+---
+title: "Clean Metadata"
+author: "Michael Sieler"
+date: "2022-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Libraries
+library(readxl)
+library(openxlsx)
+
+
+```
+
+
+## Load Metadata
+
+```{r}
+getwd()
+metadata <- read_excel(paste0(getwd(),"/../../Data/Metadata/metadata_raw.xlsx"))
+View(metadata)
+
+```
+
+
+## Columns
+
+```{r}
+
+metadata.clean <- 
+  metadata %>%
+    rename(Treatment.old = Treatment,   # Rename treatment column
+           DPE = Experiment) %>%   # Rename experiment column
+    mutate(DPE = str_remove(DPE, " dpe")) %>%
+    relocate(Treatment.old, .after = Notes) %>%  # Move treatment column to the end of dataframe
+    mutate(Treatment = case_when(
+      str_detect(Treatment.old, "Control") ~ "Control",   # Extract 'control' from treatment.old
+      str_detect(Treatment.old, "Exposed") ~ "Exposed"),  # Extract 'exposed' from treatment.old
+      .after = DPE) %>%
+    mutate(Temperature = case_when(
+      str_detect(Treatment.old, '28') ~ '28',   # Extract '28' from treatment.old
+      str_detect(Treatment.old, '32') ~ '32',   # Extract '32' from treatment.old 
+      str_detect(Treatment.old, '35') ~ '35'),  # Extract '35' from treatment.old
+      .after = Treatment) %>%
+    mutate(across(where(is.character), ~na_if(., "NA"))) %>%  # Convert 'NA" to NA
+    mutate(Total.Worm.Count = as.numeric(Total.Worm.Count),  # Convert char column to int
+           DPE = as.numeric(DPE),
+           Mature.Female.Worms.With.Eggs = as.numeric(Mature.Female.Worms.With.Eggs)) %>%  # Convert char column to int
+    rename(Worms.w.Eggs = Mature.Female.Worms.With.Eggs) %>%  # Shorten column name
+    select(-last_col())  # select all columns except for the last one
+  
+  
+view(metadata.clean)
+
+
+
+```
+
+
+# Save Metadata
+
+```{r}
+# Save old metadata 
+write_excel_csv(metadata, paste0(getwd(),"/../../Data/Metadata/metadata_OLD.csv")) 
+
+# Save cleaned metadata
+write_excel_csv(metadata.clean, paste0(getwd(),"/../../Data/Metadata/metadata.csv")) 
+write.xlsx(metadata.clean, paste0(getwd(),"/../../Data/Metadata/metadata.xlsx"))
+
+# R Object
+saveRDS(metadata.clean, paste0(getwd(),"/../../Data/Metadata/metadata.RDS"))
+
+```
+

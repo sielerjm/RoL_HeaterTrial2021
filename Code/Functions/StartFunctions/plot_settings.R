@@ -36,28 +36,30 @@ pal.BrBg <- brewer.pal(11, "BrBG")
 # GGplot2 Theme -----------------------------------------------------------
 #     Standardizing ggplot settings
 #     (adapted from Keaton Stagaman)
+
 my_theme <- theme_update(
-  legend.position = "none",
+  legend.position = "top",
   legend.box = "vertical",
-  legend.box.just = "left",
-  legend.title = element_text(size = 10),
-  legend.text = element_text(size = 9),
+  legend.box.just = "center",
+  legend.title = element_text(size = 13),
+  legend.text = element_text(size = 12),
   legend.key = element_rect(fill = "white"),
   legend.key.size = unit(1, "line"), # legend symbol size
+  legend.spacing.y = unit(-.25, 'cm'),
   
-  strip.text = element_text(size = 10),
+  strip.text = element_text(size = 12),
   
-  plot.caption = element_text(hjust = 0, size = 10),
+  plot.caption = element_text(hjust = 0, size = 12),
   
-  axis.text = element_text(size = 8),
-  axis.title = element_text(size = 10),
+  axis.text = element_text(size = 12),
+  axis.title = element_text(size = 16),
   
   panel.border = element_rect(colour = "black", fill=NA, size=1),
   panel.background = element_rect(fill = pal.Greys[1]),
   panel.grid.major = element_line(color = pal.Greys[3]),
   panel.grid.minor = element_line(color = pal.Greys[3]),
-  
-)
+) 
+
 
 
 ################################################################################
