@@ -38,8 +38,20 @@ We have an even distribution, at least one fish per sex per treatment at all tim
 
 metadata %>% 
   filter(!is.na(Sex)) %>%
-  group_by(DPE, Treatment, Temperature, Sex) %>%
+  group_by(Temperature, Treatment) %>%
   count() %>%
+  flextable()
+
+metadata %>% 
+  filter(!is.na(Sex)) %>%
+  group_by(Temperature, Treatment, DPE, Sex) %>%
+  count() %>%
+  flextable()
+
+metadata %>% 
+  filter(!is.na(Sex)) %>%
+  group_by(DPE, Treatment, Temperature, Sex) %>%
+  # count() %>%
   ggplot(aes(x = as.factor(DPE))) +
   geom_bar(aes(fill = Sex), position = position_dodge2(preserve = "single")) +
   facet_grid(Treatment~Temperature, scales = "free") +
@@ -47,7 +59,9 @@ metadata %>%
        y = "Count",
        x = "Days post exposure (DPE)") +
   theme(legend.position = "bottom") + 
-  scale_fill_manual(values = pal.Dark2) 
+  scale_fill_manual(values = pal.Dark2) +
+  scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+                       limits = c(0, 10))
 
 ```
 
@@ -92,7 +106,9 @@ metadata %>%
   geom_line(aes(color = Temperature), na.rm = FALSE) +
   geom_label_repel(aes(label = Count)) +
   # facet_grid(Sex~., scales = "free") +
-  labs(title = "Distribution worm counts across temperature") +
+  labs(title = "Distribution worm counts across temperature",
+       x = "Days post exposure (DPE)",
+       color = "DPE") +
   theme(legend.position = "bottom") + 
   scale_color_manual(values = pal.Spectral[c(3,2,1)])
 
@@ -108,7 +124,9 @@ metadata %>%
   geom_line(aes(color = Temperature), na.rm = FALSE) +
   geom_label_repel(aes(label = Count)) +
   facet_grid(Sex~., scales = "free") +
-  labs(title = "Distribution worm counts across temperature") +
+  labs(title = "Distribution worm counts across temperature",
+       x = "Days post exposure (DPE)",
+       color = "DPE") +
   theme(legend.position = "bottom") + 
   scale_color_manual(values = pal.Spectral[c(3,2,1)])
 
@@ -151,7 +169,7 @@ metadata %>%
   geom_line(aes(color = Temperature), na.rm = FALSE) +
   geom_label_repel(aes(label = round(Prop, 3))) +
   facet_grid(Sex~., scales = "free") +
-  labs(title = "Number of worms per fish between meales and females across DPE and temperature",
+  labs(title = "Number of worms per fish between sexes across DPE and temperature",
        y = "Number of worms per fish", 
        x = "Days post exposure (DPE)",
        caption = "num = worm.count / num.fish") +
@@ -181,6 +199,7 @@ mod.1 %>%
   anova() %>% 
   tidy() %>% 
   arrange(p.value) %>%
+  filter(p.value < 0.15) %>%
   flextable() %>%
   flextable_helperFuncs(col.round = c(3, 5))
 
@@ -208,6 +227,7 @@ metadata %>%
   anova() %>% 
   tidy() %>% 
   arrange(p.value) %>%
+  filter(p.value < 0.15) %>%
   flextable() %>%
   flextable_helperFuncs(col.round = c(3, 5))
 
