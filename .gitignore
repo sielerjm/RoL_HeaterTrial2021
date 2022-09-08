@@ -1,3 +1,9 @@
+# Manuscript
+/Manuscript/
+
+# FastQ Files
+/Data/Raw/FastQs/
+
 # History files
 .Rhistory
 .Rapp.history
@@ -13,9 +19,6 @@
 
 # Output files from R CMD check
 /*.Rcheck/
-
-# FastQ Files
-/Data/Raw/FastQs/
 
 # RStudio files
 .Rproj.user/
