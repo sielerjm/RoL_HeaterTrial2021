@@ -1,8 +1,10 @@
 # Manuscript
 /Manuscript/
 
+# Presentation
+/Presentation/
 # FastQ Files
-/Data/Raw/FastQs/
+/Data/Raw/
 
 # History files
 .Rhistory

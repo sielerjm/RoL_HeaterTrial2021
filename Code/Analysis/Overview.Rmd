@@ -110,7 +110,7 @@ metadata %>%
        x = "Days post exposure (DPE)",
        color = "DPE") +
   theme(legend.position = "bottom") + 
-  scale_color_manual(values = pal.Spectral[c(3,2,1)])
+  scale_color_manual(values = pal.Spectral[c(9,8,1)])
 
 
 metadata %>%
@@ -128,7 +128,7 @@ metadata %>%
        x = "Days post exposure (DPE)",
        color = "DPE") +
   theme(legend.position = "bottom") + 
-  scale_color_manual(values = pal.Spectral[c(3,2,1)])
+  scale_color_manual(values = pal.Spectral[c(9,8,1)])
 
 
 ```
@@ -174,7 +174,7 @@ metadata %>%
        x = "Days post exposure (DPE)",
        caption = "num = worm.count / num.fish") +
   theme(legend.position = "bottom") + 
-  scale_color_manual(values = pal.Spectral[c(3,2,1)]) +
+  scale_color_manual(values = pal.Spectral[c(9,8,1)]) +
   scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
                        limits = c(0, 10))
 

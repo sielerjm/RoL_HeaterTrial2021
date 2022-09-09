@@ -1,4 +1,4 @@
-﻿"Sample","Sample.Date","Age.Days","DPE","Treatment","Temperature","Tank.ID","Sex","Pathology.Results","Total.Worm.Count","Worms.w.Eggs","Notes"
+﻿"Fish.ID","Sample.Date","Age.Days","DPE","Treatment","Temperature","Tank.ID","Sex","Pathology.Results","Total.Worm.Count","Worms.w.Eggs","Notes"
 "RTF001","2021/09/24 00:00:00",164,0,"Control","35",4,"M",NA,NA,NA,"All fish 5D; all 0 dpe samples nonlethal and no pathology; fish sex visual assessement only"
 "RTF002","2021/09/24 00:00:00",164,0,"Control","35",4,"F",NA,NA,NA,NA
 "RTF003","2021/09/24 00:00:00",164,0,"Control","35",4,"F",NA,NA,NA,NA

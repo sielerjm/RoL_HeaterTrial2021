@@ -32,6 +32,7 @@ View(metadata)
 
 metadata.clean <- 
   metadata %>%
+    rename(Sample = Fish.ID) %>%  # rename sample column
     rename(Treatment.old = Treatment,   # Rename treatment column
            DPE = Experiment) %>%   # Rename experiment column
     mutate(DPE = str_remove(DPE, " dpe")) %>%

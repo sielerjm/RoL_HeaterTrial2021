@@ -17,37 +17,39 @@ if(grepl("/Code", getwd())){
        \t**Exiting script."))
 
 # Helper Scripts
+source(paste0(proj.path,"/Code/Functions/StartFunctions/sourceFolder.R"))
 
-## Load libraries
-source(paste0(proj.path,"/HelperScripts/libraries.R"))
-
-## Load functions
-source(paste0(proj.path,"/HelperScripts/functions_2.R"))
-
-## Load custom plot settings
-source(paste0(proj.path,"/HelperScripts/plot_settings.R"))
+# Import all helper functions found in `/Functions`
+sourceFolder(paste0(proj.path,"/Code/Functions"), T)
 
 # Set important paths
 
+# Important Paths
+path.code <- paste0(proj.path,"/Code")
+path.data <- paste0(proj.path,"/Data")
+path.input <- paste0(proj.path,"/Data/Input") 
+path.results <- paste0(proj.path,"/Results") 
+
 ## Path to data files/sub-folders
-data.path <- check_proj_struct(proj.path,  # Project path
-                               "/../Data")  # Sub-directory
+data.path <- path.data
 
 ## Path to Robjects (Renv, Rds, Rdata, etc.) saved here
-objects.path <- check_proj_struct(data.path,  # Project path
-                                  "/Clean/Robjects")  # Sub-directory
+objects.path <- paste0(data.path,  # Project path
+                                  "/Robjects")  # Sub-directory
 
 ## Path to Output (Figures, Tables)
-output.path <- check_proj_struct(proj.path,  # Project path
-                                 "/../Output")  # Sub-directory
+output.path <- paste0(data.path,  # Project path
+                                 "/Output")  # Sub-directory
 
 ## Path to Output (Figures, Tables)
-inDir <- check_proj_struct(data.path,  # Data path
-                           "/Clean/Input")  # Sub-directory
+inDir <- paste0(data.path,  # Data path
+                           "/Input")  # Sub-directory
 
+# list.files(inDir)  # Check that it contains what you expect
 
 # Location of FastTree installation
 local.symlinks <- "/Users/michaelsieler/Dropbox/Mac (2)/Documents/Sharpton_Lab/Bioinformatics_files/Symlinks"
+# list.files(local.symlinks)  # Check that it contains what you expect
 
 # -------------------------------------------------------------------------
 
@@ -72,6 +74,7 @@ names(file.ids.dt)[1] <- "Sample"
 sample.dt <- read.csv(file.path(inDir, metadata.file)) %>%
   as.data.table() #%>%
   #subset(Dissect_result != "no gut")
+names(sample.dt)[1] <- "Sample"
 
 # Rename sample name column
 # names(sample.dt)[which(names(sample.dt) == "Sample")] <- "Sample" # If col name is not sample, this rename it
@@ -82,7 +85,7 @@ sample.dt <- read.csv(file.path(inDir, metadata.file)) %>%
 # combined.dt <- sample.dt[file.ids.dt, on = "Sample"]
 
 # Checks for duplicates
-dupes <- table(combined.dt$Sample) %>% subset(. > 1) %>% names()  # if no duplicates it will say "error"
+dupes <- table(sample.dt$Sample) %>% subset(. > 1) %>% names()  # if no duplicates it will say "error"
 matched.dupes <- data.table(Dupe = dupes, Matches = 0) %>% setkey(Dupe)  # Matches duplicates if there are some, skip if you didn't have any in previous line
 
 
@@ -96,11 +99,24 @@ for (i in 1:nrow(combined.dt)) {
 }
 table(combined.dt$Sample) %>% subset(. > 1) %>% names()
 
+
+
+
 # Save RDS obj with file ids
 # saveRDS(combined.dt, file = file.path(inDir, "metadata_withFileIDs.rds"))
 saveRDS(sample.dt, file = file.path(inDir, "metadata_withFileIDs.rds"))  # Export RDS obj
 
+# Merge forward and reverse indices into a "Barcode" column
+file.ids.dt <- 
+  file.ids.dt %>%
+    mutate(Barcode = paste0(`Forward Index`,"-", `Reverse Index`))
 
+# Combine sample and file name datatable into a combined datatable
+combined.dt <- 
+  sample.dt %>%
+    left_join(.,file.ids.dt, by = "Sample")
+
+saveRDS(combined.dt, file = file.path(inDir, "metadata_withFileIDs.rds"))  # Export RDS obj
 
 # -------------------------------------------------------------------------
 ### DARWIN
@@ -136,7 +152,7 @@ if (!("data.table" %in% sample.ids.dt)) {
 
 orig.dir <- getwd()
 
-fastq.dir <- file.path(inDir, "FastQs")
+fastq.dir <- file.path(data.path, "Raw/FastQs")
 
 setDTthreads(threads = cores)
 if (!dir.exists(fastq.dir)) {dir.create(fastq.dir)}
