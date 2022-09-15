@@ -3,8 +3,15 @@
 
 # Presentation
 /Presentation/
+
 # FastQ Files
 /Data/Raw/
+
+# Mind Maps
+/MindMaps/
+
+# Dada2 Output
+/Data/Output/
 
 # History files
 .Rhistory

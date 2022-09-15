@@ -242,11 +242,37 @@ flextable_helperFuncs <- function(flextbl.obj,
 
 
 
-# -------------------------------------------------------------------------
+# print glm formula -------------------------------------------------------------------------
 # Description: 
 # Input: 
 # Output: 
 
+glm_formula <- function(mod){
+  
+  return(
+    paste0("glm(",
+           mod[[1]][["formula"]],
+           ", family=",
+           mod[[1]][["family"]][["family"]],
+           ")")
+           )
+}
+
+# print capscale formula -------------------------------------------------------------------------
+# Description: 
+# Input: 
+# Output: 
+
+glm_formula <- function(mod){
+  
+  return(
+    paste0("capscale(",
+           mod[[1]][["formula"]],
+           ", family=",
+           mod[[1]][["family"]][["family"]],
+           ")")
+  )
+}
 
 
 

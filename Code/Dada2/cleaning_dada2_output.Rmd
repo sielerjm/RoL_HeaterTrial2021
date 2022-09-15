@@ -11,57 +11,6 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)  # Sets default knit settings for document
 
-# Start script timer
-print("Starting script.")
-start_time <- Sys.time()
-
-# Check project file location is in correct directory
-## Path to project directory (Rproject file should be stored in "~/Code")
-if(grepl("/Code", getwd())){
-  proj.path <- getwd()
-} else(
-  # Script will stop if project file is not located in ~/Code directory
-  stop("Project file (`.Rproj`) is not located in `~/Code` directory. 
-       \t**Exiting script.")
-)
-
-
-# Helper Scripts
-
-## Load libraries
-source(paste0(proj.path,"/HelperScripts/libraries.R"))
-
-## Load functions
-source(paste0(proj.path,"/HelperScripts/functions_2.R"))
-
-## Load custom plot settings
-source(paste0(proj.path,"/HelperScripts/plot_settings.R"))
-
-# Set important paths
-
-## Path to data files/sub-folders
-data.path <- check_proj_struct(proj.path,  # Project path
-                               "/../Data")  # Sub-directory
-
-## Path to Robjects (Renv, Rds, Rdata, etc.) saved here
-objects.path <- check_proj_struct(data.path,  # Project path
-                                  "/Clean/Robjects")  # Sub-directory
-
-## Path to Output (Figures, Tables)
-output.path <- check_proj_struct(proj.path,  # Project path
-                                 "/../Output")  # Sub-directory
-
-
-# Save Environment 
-## save_env(objects.path)
-
-# Check if environment file exists and load newest 
-# load_env(objects.path)
-
-analysis.ID <- paste0(
-  "ZF-DietStudy_",  # Data subsetted? If so, how? "<name>_"
-  Sys.Date()  # Date of analysis
-)
 
 ```
 
@@ -72,29 +21,34 @@ analysis.ID <- paste0(
 # File contains info on important variables, analyses and output objects
 
 # ps0 <- readRDS("/Users/michaelsieler/Dropbox/Mac (2)/Documents/Project_Repos/Plug-n-Chug-Microbiome-16S-Data-Analysis/Data/Raw/Robjects_raw/phyloseq.rds")
-ps0 <- readRDS(paste0(data.path, "/Clean/Robjects_raw/phyloseq.rds"))
-# View(sample.data.frame(ps0))
+ps.raw <- readRDS(paste0(data.path, "/Output/dada2_1.24.0_2022-09-12/phyloseq.rds"))
+# View(sample.data.frame(ps.raw))
 ```
 
 ## Variables
 
-### Rename Columns and Refactor
+### Columns
 
-#### Rename Columns
 ```{r}
-colnames(sample_data(ps0)) <- c("Facility", "Sample.Date" , "Age", "Timepoint", "Treatment", "Diet",  "Tank", "Sex" , "Weight", "Length", "Width", "Body.Condition", "Pathology.Results", "Dose" ,"Severity.Score", "Coelom", "Ovary" ,"Kidney", "Lumen.Colonization", "Notes" )
 
-View(sample.data.frame(ps0))
+sample_data(ps.raw)$Sample <- factor(sample_data(ps.raw)$Sample, levels=sort(rownames(sample.data.frame(ps.raw))))
+
+sample_data(ps.raw) <- sample_data(ps.raw)[order(sample_data(ps.raw)$Sample),]
+
+View(sample.data.frame(ps.raw))
+
+
 
 ```
+
 
 #### Remove Controls
 
 ```{r}
 # Removing kit controls/blanks
-ps0 <- subset_samples(ps0, !is.na(Age))
-
-View(sample.data.frame(ps0))
+# ps0 <- subset_samples(ps0, !is.na(Age))
+# 
+# View(sample.data.frame(ps0))
 ```
 
 
@@ -273,40 +227,40 @@ ggsave(filename = paste0(output.path, "/Figures/", var_name_sub(outlier.plots), 
 ### Rarefy Data
 
 ```{r Rarefaction}
-# 
-# ps1 <- ps0
-# 
-# ps1.rar <- {
-#     rarefaction.minimum <- 5000
-#     min.smpl.size <- min(sample_sums(ps1)[sample_sums(ps1) >= rarefaction.minimum])
-#     ps.rar <- rarefy_even_depth(
-#         physeq = ps1, 
-#         sample.size = min.smpl.size,
-#         trimOTUs = TRUE,
-#         rngseed = 42
-#           ) %>% 
-#             subset_taxa(!is.na(Kingdom) & Kingdom != "Eukaryota")
-#     rename.NA.taxa(ps.rar)
-# }
-# 
-# 
-# # ps1
-# 
-# hist(sample_sums(ps1), main="Histogram: Read Counts before rarefaction", xlab="Total Reads", 
-#      border="blue", col="green", las=1, breaks=12)
-# 
-# rare.plot.preRare <- rarecurve(t(otu_table(ps1)), step=50, cex=0.5, label=F)
-# 
-# print(paste0("Minimum sequence depth: ", min(sample_sums(ps1))))  # "Minimum sequence depth: 475"
-# 
-# # ps1.rar
-# 
-# hist(sample_sums(ps1.rar), main="Histogram: Read Counts after rarefaction", xlab="Total Reads", 
-#      border="blue", col="green", las=1, breaks=12)
-# 
-# rarecurve(t(otu_table(ps1.rar)), step=50, cex=0.5, label=F) #+ abline(v=(min(sample_sums(ps1))))
-# 
-# print(paste0("Minimum sequence depth: ", min(sample_sums(ps1.rar))))  # "Minimum sequence depth: 3187"
+
+ps1 <- ps.raw
+
+ps1.rar <- {
+    rarefaction.minimum <- 5000
+    min.smpl.size <- min(sample_sums(ps1)[sample_sums(ps1) >= rarefaction.minimum])
+    ps.rar <- rarefy_even_depth(
+        physeq = ps1,
+        sample.size = min.smpl.size,
+        trimOTUs = TRUE,
+        rngseed = 42
+          ) %>%
+            subset_taxa(!is.na(Kingdom) & Kingdom != "Eukaryota")
+    rename.NA.taxa(ps.rar)
+}
+
+
+# ps1
+
+hist(sample_sums(ps1), main="Histogram: Read Counts before rarefaction", xlab="Total Reads",
+     border="blue", col="green", las=1, breaks=12)
+
+rare.plot.preRare <- rarecurve(t(otu_table(ps1)), step=50, cex=0.5, label=F)
+
+print(paste0("Minimum sequence depth: ", min(sample_sums(ps1))))  # "Minimum sequence depth: 475"
+
+# ps1.rar
+
+hist(sample_sums(ps1.rar), main="Histogram: Read Counts after rarefaction", xlab="Total Reads",
+     border="blue", col="green", las=1, breaks=12)
+
+rarecurve(t(otu_table(ps1.rar)), step=50, cex=0.5, label=F) #+ abline(v=(min(sample_sums(ps1))))
+
+print(paste0("Minimum sequence depth: ", min(sample_sums(ps1.rar))))  # "Minimum sequence depth: 3187"
 ```
 
 
@@ -427,7 +381,7 @@ clean.ps.obj <- paste0(objects.path, "/phyloseq_sampData_cleaned_Outliers_", Sys
 saveRDS(ps1, file = file.path(paste0(objects.path, "/phyloseq_sampData_cleaned_noOutliers_", Sys.Date(),".rds")))
 
 # # Save PS obj, samp data cleaned, no outliers, rarefied
-# saveRDS(ps1.rar, file = file.path(paste0(objects.path, "/phyloseq_cleaned_rarefied_", Sys.Date(),".rds")))
+saveRDS(ps1.rar, file = file.path(paste0(output.path, "/phyloseq_cleaned_rarefied_", Sys.Date(),".rds")))
 
 
 # Save Environment

@@ -1,5 +1,5 @@
 ---
-title: "Clean Metadata"
+title: "Overview"
 author: "Michael Sieler"
 date: "2022-09-07"
 output: html_document
@@ -18,6 +18,21 @@ proj.path <- getwd()
 source(paste0(proj.path,"/../../Code/Functions/StartFunctions/plot_settings.R"))
 
 ```
+
+```{r include=FALSE}
+
+# Plot Settings
+
+col.Temp <- pal.Spectral[c(9,8,1)]
+col.DPE <- RColorBrewer::brewer.pal(9, "YlOrRd")
+col.Treat <- c(pal.Dark2[c(3,5)])
+
+col.TempDPE <- c(RColorBrewer::brewer.pal(9, "Blues")[c(1,3,5,7,9)],
+                 RColorBrewer::brewer.pal(9, "Greens")[c(1,3,5,7,9)],
+                 RColorBrewer::brewer.pal(9, "Reds")[c(1,3,5,7,9)])
+
+```
+
 
 
 ## Load Metadata
@@ -242,3 +257,832 @@ metadata %>%
 Our results suggest that temperature and sex influence number of total worms in fish. Pathogens were more prolific in fish exposed to 28 degrees Celsius temperatures, followed by 32 and finally 35. We observed virtually no infections in fish exposed to 35 degrees. We also find that male fish were more infected than females. Additionally, we find an interaction effect between temperature and days post exposure, but it did not meet our threshold for significance. However, when we normalized number of worms per sex of fish, we observe a significant main effect of temperature and a significant interaction effect between temperature and sex, but sex is no longer a significant main effect. Infection burden appears to peak at 14 and 21 days in the 28 and 32 degree groups, respectively. Collectively, these results indicate that temperature and sex play a role in total worm counts. 
 
 We found that temperature and sex influenced number of worms found in fish. In particular, it appears that fish exposed to a pathogen at higher temps fair better, and female fish fair better than males. However, this experiment was only conducted under one generation of fish, and we do not know if subsequent generations would fair similarly. Perhaps in subsequent generations, the pathogen would adapt to the higher temperatures and infect fish at the higher temperatures. 
+
+
+## Microbiome
+
+### Temperature (Controls)
+
+#### Alpha Diversity
+
+
+```{r}
+
+data <- df.conT0TF
+data.alpha <- dt.alphaPlus.conT0TF.melt
+ps.obj <- ps.conT0TF
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c("28", "32", "35"))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+
+```
+
+
+```{r}
+
+data.alpha %>%
+  filter(Alpha.Metric == "Simpson") %>%
+    ggplot(aes(x = as.factor(DPE), 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = Temperature)
+                 ) +
+    # geom_quasirandom(size = 1) +
+    scale_fill_manual(values = col.Temp) +
+    # scale_color_manual(values = col.DPE) + 
+    facet_grid(Alpha.Metric ~ .) +
+    labs(
+      # title = "",
+      # caption = "",
+      x = "Days Post Exposure (DPE)",
+      y = "Alpha Score (normalized)"
+    ) +
+    # ggpubr::stat_pvalue_manual(plot.sig.labs[["Simpson"]], 
+    #                            label = "p.adj.signif", 
+    #                            size = 6,
+    #                            bracket.size = 1,
+    #                            y.position = c(.85, .925, 1.1)) +
+    # scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+    #                    limits = c(0, 1.1)) + 
+  theme(legend.position = "bottom")
+
+```
+
+##### Stats
+
+```{r}
+# Stats
+
+tukey.test.list <- lapply(methods.alpha, function(alpha){
+  test <- data.alpha %>%
+    mutate(DPE = as.factor(DPE)) %>%
+    filter(Alpha.Metric == alpha) %>%
+    group_by(DPE) %>%
+    nest(data = -DPE) %>%
+    mutate(test = map(.x=data, 
+                      ~summary(multcomp::glht(glm(formula = Alpha.Score ~ -1 + Temperature, 
+                           data = .x,
+                           family = "quasibinomial"), 
+                           linfct = mcp(Temperature = "Tukey")) )%>% tidy
+                      )) %>%
+    unnest(test) %>%
+    separate(contrast, c('group1', 'group2'), sep = " - ") %>%
+    select(-c(data, null.value)) %>%
+    rename(p.adj = adj.p.value) %>%
+    mutate(p.adj.signif = case_when(p.adj < 0.05 ~ "*",
+                                    p.adj >= 0.05 ~ "ns")) %>%
+    mutate(`.y.` = "Alpha.Score", .after = 1) %>%
+    arrange(DPE)%>%
+  mutate(metric = alpha, .before = 1)
+})
+
+# Build GLM Model
+mod.list <- lapply(methods.alpha, function(alpha){
+  glm( formula = "Alpha.Score ~ Temperature*DPE",
+       data = subset(data.alpha, Alpha.Metric == alpha),
+       family = "quasibinomial")
+}) %>% setNames(methods.alpha)
+
+glm_formula(mod.list)
+
+# Model Output
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% 
+    tidy() %>%
+    mutate(metric = x, .before = 1) %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", "")) %>%
+    arrange(desc(abs(statistic)))
+}) %>% bind_rows() %>%
+  flextable() %>%
+  colformat_double(j = 3:5, digits = 3) %>%
+  merge_v(j = 1)  %>%
+  set_formatter(values = list("p.value" = p_val_format) ) %>%
+  hline(i = c(6,12,18), j = NULL, border = NULL, part = "body") %>%
+  set_caption(glm_formula(mod.list))
+
+
+
+
+# Anova
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% Anova(type = 2) %>%
+    tidy() %>%
+    mutate(metric = x, .before = 1)  %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", "")) %>%
+    arrange(desc(abs(statistic)))
+}) %>% bind_rows() %>%
+    filter(metric == "Simpson") %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 3, digits = 3) %>%
+    merge_v(j = 1) %>%
+    set_formatter(values = list("p.value" = p_val_format) ) %>%
+    # hline(i = c(3,6,9), j = NULL, border = NULL, part = "body") %>%
+    set_caption(paste0("ANOVA( ",glm_formula(mod.list)," )")) %>%
+    autofit()
+
+# Tukey's Pairwise Comparison
+tukey.test.list %>%
+  bind_rows() %>%
+  filter(metric == "Simpson") %>%
+  flextable() %>%
+  align(j = 3:6, align = "right") %>%
+  colformat_double(j = 6:10, digits = 3) %>%
+  merge_v(j = 1) %>%
+  set_formatter(values = list("adj.p.value" = p_val_format) ) %>%
+  # hline(i = c(15,30,45), j = NULL, border = NULL, part = "body") %>%
+  hline(i = c(3,6,9,12), j = NULL, border = NULL, part = "body") %>%
+  set_caption(paste0("Pairwise Tukey's HSD, p.adj: Dunnett. glht( ", glm_formula(mod.list),", family = quasibinomial ))")) %>%
+  autofit()
+```
+
+
+##### Summary
+
+
+
+
+#### Beta Diversity
+
+
+```{r Diet-Beta-Temp, fig.height=6, fig.width=6}
+
+
+dist <- distList.conT0TF
+
+# Full dbRDA models
+mod <- full_dbrda_model(vars = c("Temperature"),  # Enter variables as a list "c(var.A, var.B, var.C)"
+                          distance = dist,
+                          methods = methods.beta,
+                          names = set_names_beta,
+                          physeq = ps.obj,
+                          data = data,
+                          terms = 1,  # if you want interaction terms enter 2, otherwise 1
+                          num.cores = num.cores
+                        )
+
+anova <- beta_anova(beta.model = mod,
+                    methods = methods.beta,
+                    names = set_names_beta,
+                    num.cores = num.cores)
+
+
+# Plot prep
+dt.ord.full.beta <- ord_dt_list(mod, ps.obj)
+beta.dt.full <- samp_coord_dt(dt.ord.full.beta, methods.beta)
+beta.axis.full <- axis_labels(dt.ord.full.beta)
+
+
+lapply(methods.beta, function(beta){
+  
+  tmp.stat <- round(anova[["statistic"]][anova$metric == beta][1],3)
+  tmp.pval <- round(anova[["p.value"]][anova$metric == beta][1],3)
+  
+  
+  
+  
+  dt.ord.full.beta[[beta]]$sample.coords %>%
+    ggplot(aes(x = CAP1, y = CAP2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = as.factor(DPE),
+                     shape = Temperature),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = c(col.DPE[c(1,3,5,7,9)]), name = "DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta, "; F=",tmp.stat,"; P", ifelse(tmp.pval <= 0.001, "<", "="),tmp.pval )) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.DPE[c(1,3,5,7,9)] )))
+
+})
+
+
+
+
+stats_table(anova) %>%
+  set_caption(paste0("Distance-based redundancy analysis (dbRDA) ordination. Beta.Score ~ Diet"))
+
+
+
+```
+
+#### Beta-Dispersion
+
+```{r}
+
+ord.beta <- c("bray", "canberra", "sor", "unifrac","wunifrac")
+
+data.beta <- lapply(ord.beta, function(beta){
+  
+  tmp.ord <- ordinate(
+      physeq = ps.obj, 
+      method = "PCoA",  # c("DCA", "CCA", "RDA", "CAP", "DPCoA", "NMDS", "MDS", "PCoA")
+      distance = beta  # c("bray", "canberra", "sor")
+    )
+  
+  tmp.ord.data <- list()
+  tmp.ord.data[[beta]] <- plot_ordination(
+      physeq = ps.obj,
+      ordination = tmp.ord,
+      justDF = T
+    )
+  
+}) %>% set_names(ord.beta)
+
+# Unconstrained Plots
+lapply(ord.beta, function(beta){
+  
+  data.beta[[beta]] %>%
+    ggplot(aes(x = Axis.1, y = Axis.2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = as.factor(DPE),
+                     shape = Temperature),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = c(col.DPE[c(1,3,5,7,9)]), name = "DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta)
+           ) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.DPE[c(1,3,5,7,9)] )))
+
+})
+
+# Beta-dispersion Table
+# ord.beta <- c("bray", "canberra")
+beta.disp <- list()
+beta.disp <- lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% permutest(pairwise = T, permutations = 999)
+  
+}) %>% setNames(ord.beta)
+
+lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% boxplot()
+  
+}) 
+
+# Anova
+lapply(beta.disp, function(beta) {
+  beta$tab %>% 
+    flextable()
+})
+
+# Permutation table
+lapply(beta.disp, function(beta) {
+  # print(beta)
+  beta$pairwise$permuted %>%
+    tidy() %>%
+    rename(Names = names,
+           `p-value` = x) %>%
+    flextable()
+})
+
+```
+
+
+
+### Temperature (Exposed)
+
+#### Alpha Diversity
+
+```{r}
+
+data <- df.expT0TF
+data.alpha <- dt.alphaPlus.expT0TF.melt
+ps.obj <- ps.expT0TF
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c("28", "32", "35"))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+
+```
+
+
+```{r}
+
+data.alpha %>%
+  # filter(Alpha.Metric == "Simpson") %>%
+    ggplot(aes(x = as.factor(DPE), 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = Temperature)
+                 ) +
+    # geom_quasirandom(size = 1) +
+    scale_fill_manual(values = col.Temp) +
+    # scale_color_manual(values = col.DPE) + 
+    facet_grid(Alpha.Metric ~ .) +
+    labs(
+      # title = "",
+      # caption = "",
+      x = "Days Post Exposure (DPE)",
+      y = "Alpha Score (normalized)"
+    ) +
+    # ggpubr::stat_pvalue_manual(plot.sig.labs[["Simpson"]], 
+    #                            label = "p.adj.signif", 
+    #                            size = 6,
+    #                            bracket.size = 1,
+    #                            y.position = c(.85, .925, 1.1)) +
+    # scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+    #                    limits = c(0, 1.1)) + 
+  theme(legend.position = "bottom")
+
+```
+
+
+
+
+#### Beta Diversity
+
+
+```{r Diet-Beta-Temp}
+
+dist <- distList.expT0TF
+
+# Full dbRDA models
+mod <- full_dbrda_model(vars = c("Temperature"),  # Enter variables as a list "c(var.A, var.B, var.C)"
+                          distance = dist,
+                          methods = methods.beta,
+                          names = set_names_beta,
+                          physeq = ps.obj,
+                          data = data,
+                          terms = 1,  # if you want interaction terms enter 2, otherwise 1
+                          num.cores = num.cores
+                        )
+
+anova <- beta_anova(beta.model = mod,
+                    methods = methods.beta,
+                    names = set_names_beta,
+                    num.cores = num.cores)
+
+
+# Plot prep
+dt.ord.full.beta <- ord_dt_list(mod, ps.obj)
+beta.dt.full <- samp_coord_dt(dt.ord.full.beta, methods.beta)
+beta.axis.full <- axis_labels(dt.ord.full.beta)
+
+
+lapply(methods.beta, function(beta){
+  
+  tmp.stat <- round(anova[["statistic"]][anova$metric == beta][1],3)
+  tmp.pval <- round(anova[["p.value"]][anova$metric == beta][1],3)
+  
+  
+  
+  
+  dt.ord.full.beta[[beta]]$sample.coords %>%
+    ggplot(aes(x = CAP1, y = CAP2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = as.factor(DPE),
+                     shape = Temperature),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = c(col.DPE[c(1,3,5,7,9)]), name = "DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta, "; F=",tmp.stat,"; P", ifelse(tmp.pval <= 0.001, "<", "="),tmp.pval )) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.DPE[c(1,3,5,7,9)] )))
+
+})
+
+
+
+
+stats_table(anova) %>%
+  set_caption(paste0("Distance-based redundancy analysis (dbRDA) ordination. Beta.Score ~ Diet"))
+
+
+```
+
+#### Beta-Dispersion
+
+```{r}
+
+ord.beta <- c("bray", "canberra", "sor", "unifrac","wunifrac")
+
+data.beta <- lapply(ord.beta, function(beta){
+  
+  tmp.ord <- ordinate(
+      physeq = ps.obj, 
+      method = "PCoA",  # c("DCA", "CCA", "RDA", "CAP", "DPCoA", "NMDS", "MDS", "PCoA")
+      distance = beta  # c("bray", "canberra", "sor")
+    )
+  
+  tmp.ord.data <- list()
+  tmp.ord.data[[beta]] <- plot_ordination(
+      physeq = ps.obj,
+      ordination = tmp.ord,
+      justDF = T
+    )
+  
+}) %>% set_names(ord.beta)
+
+# Unconstrained Plots
+lapply(ord.beta, function(beta){
+  
+  data.beta[[beta]] %>%
+    ggplot(aes(x = Axis.1, y = Axis.2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = as.factor(DPE),
+                     shape = Temperature),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = c(col.DPE[c(1,3,5,7,9)]), name = "DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta)
+           ) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.DPE[c(1,3,5,7,9)] )))
+
+})
+
+# Beta-dispersion Table
+# ord.beta <- c("bray", "canberra")
+beta.disp <- list()
+beta.disp <- lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% permutest(pairwise = T, permutations = 999)
+  
+}) %>% setNames(ord.beta)
+
+lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% boxplot()
+  
+}) 
+
+# Anova
+lapply(beta.disp, function(beta) {
+  beta$tab %>% 
+    flextable()
+})
+
+# Permutation table
+lapply(beta.disp, function(beta) {
+  # print(beta)
+  beta$pairwise$permuted %>%
+    tidy() %>%
+    rename(Names = names,
+           `p-value` = x) %>%
+    flextable()
+})
+
+```
+
+
+### Temperature: Control vs Exposed
+
+#### Alpha Diversity
+
+```{r}
+
+data <- df.all
+data.alpha <- dt.alphaPlus.all.melt
+ps.obj <- ps.all
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c("28", "32", "35"))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+
+```
+
+
+```{r}
+
+data.alpha %>%
+  filter(Alpha.Metric == "Simpson" | Alpha.Metric == "Phylogenetic") %>%
+    ggplot(aes(x = as.factor(DPE), 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = Temperature,
+                     color = Treatment)
+                 ) +
+    # geom_quasirandom(size = 1) +
+    scale_fill_manual(values = col.Temp) +
+    scale_color_manual(values = col.Treat) +
+    facet_grid(Alpha.Metric ~ Temperature) +
+    labs(
+      # title = "",
+      # caption = "",
+      x = "Days Post Exposure (DPE)",
+      y = "Alpha Score (normalized)"
+    ) +
+    # ggpubr::stat_pvalue_manual(plot.sig.labs[["Simpson"]], 
+    #                            label = "p.adj.signif", 
+    #                            size = 6,
+    #                            bracket.size = 1,
+    #                            y.position = c(.85, .925, 1.1)) +
+    # scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+    #                    limits = c(0, 1.1)) + 
+  theme(legend.position = "bottom")
+
+```
+
+
+
+
+#### Beta Diversity
+
+
+```{r Diet-Beta-Temp}
+
+dist <- distList.all
+
+# Full dbRDA models
+mod <- full_dbrda_model(vars = c("Temperature*Treatment"),  # Enter variables as a list "c(var.A, var.B, var.C)"
+                          distance = dist,
+                          methods = methods.beta,
+                          names = set_names_beta,
+                          physeq = ps.obj,
+                          data = data,
+                          terms = 2,  # if you want interaction terms enter 2, otherwise 1
+                          num.cores = num.cores
+                        )
+
+anova <- beta_anova(beta.model = mod,
+                    methods = methods.beta,
+                    names = set_names_beta,
+                    num.cores = num.cores)
+
+
+# Plot prep
+dt.ord.full.beta <- ord_dt_list(mod, ps.obj)
+beta.dt.full <- samp_coord_dt(dt.ord.full.beta, methods.beta)
+beta.axis.full <- axis_labels(dt.ord.full.beta)
+
+
+lapply(methods.beta, function(beta){
+  
+  tmp.stat <- round(anova[["statistic"]][anova$metric == beta][1],3)
+  tmp.pval <- round(anova[["p.value"]][anova$metric == beta][1],3)
+  
+  
+  
+  
+  dt.ord.full.beta[[beta]]$sample.coords %>%
+    mutate(Temp.DPE = paste0(Temperature,"_",DPE)) %>%
+    ggplot(aes(x = CAP1, y = CAP2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = Temp.DPE, #as.factor(DPE),
+                     shape = Treatment),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = col.TempDPE, name = "Temp & DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta, "; F=",tmp.stat,"; P", ifelse(tmp.pval <= 0.001, "<", "="),tmp.pval )) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.TempDPE )))
+
+})[2]
+
+
+
+
+stats_table(anova) %>%
+  set_caption(paste0("Distance-based redundancy analysis (dbRDA) ordination. Beta.Score ~ Diet"))
+
+
+```
+
+#### Beta-Dispersion
+
+##### Temperature
+
+```{r}
+
+ord.beta <- c("bray", "canberra", "sor", "unifrac","wunifrac")
+
+data.beta <- lapply(ord.beta, function(beta){
+  
+  tmp.ord <- ordinate(
+      physeq = ps.obj, 
+      method = "PCoA",  # c("DCA", "CCA", "RDA", "CAP", "DPCoA", "NMDS", "MDS", "PCoA")
+      distance = beta  # c("bray", "canberra", "sor")
+    )
+  
+  tmp.ord.data <- list()
+  tmp.ord.data[[beta]] <- plot_ordination(
+      physeq = ps.obj,
+      ordination = tmp.ord,
+      justDF = T
+    )
+  
+}) %>% set_names(ord.beta)
+
+# Unconstrained Plots
+lapply(ord.beta, function(beta){
+  
+  data.beta[[beta]] %>%
+    mutate(Temp.DPE = paste0(Temperature,"_",DPE)) %>%
+    ggplot(aes(x = Axis.1, y = Axis.2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = Temp.DPE,
+                     shape = Treatment),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = col.TempDPE, name = "Temp & DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta)
+           ) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.TempDPE )))
+
+})
+
+# Beta-dispersion Table
+# ord.beta <- c("bray", "canberra")
+beta.disp <- list()
+beta.disp <- lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% permutest(pairwise = T, permutations = 999)
+  
+}) %>% setNames(ord.beta)
+
+lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Temperature)  %>% boxplot()
+  
+}) 
+
+# Anova
+lapply(beta.disp, function(beta) {
+  beta$tab %>% 
+    flextable()
+})
+
+# Permutation table
+lapply(beta.disp, function(beta) {
+  # print(beta)
+  beta$pairwise$permuted %>%
+    tidy() %>%
+    rename(Names = names,
+           `p-value` = x) %>%
+    flextable()
+})
+
+```
+
+##### Exposure
+
+```{r}
+
+ord.beta <- c("bray", "canberra", "sor", "unifrac","wunifrac")
+
+data.beta <- lapply(ord.beta, function(beta){
+  
+  tmp.ord <- ordinate(
+      physeq = ps.obj, 
+      method = "PCoA",  # c("DCA", "CCA", "RDA", "CAP", "DPCoA", "NMDS", "MDS", "PCoA")
+      distance = beta  # c("bray", "canberra", "sor")
+    )
+  
+  tmp.ord.data <- list()
+  tmp.ord.data[[beta]] <- plot_ordination(
+      physeq = ps.obj,
+      ordination = tmp.ord,
+      justDF = T
+    )
+  
+}) %>% set_names(ord.beta)
+
+# Unconstrained Plots
+lapply(ord.beta, function(beta){
+  
+  data.beta[[beta]] %>%
+    ggplot(aes(x = Axis.1, y = Axis.2)) +
+      stat_ellipse(aes(linetype = Temperature)) +
+      geom_point(aes(fill = as.factor(DPE),
+                     shape = Treatment),
+                 size = 2.5,
+                 alpha = 1
+                 ) +
+      # geom_segment(
+      #     data = dt.ord.full.beta$beta$vector.coords, 
+      #     aes(x = 0, 
+      #         y = 0, 
+      #         xend = CAP1, 
+      #         yend = CAP2),
+      #     color = "black",
+      #     arrow = arrow(length = unit(0.05, "npc"))
+      # ) +
+      scale_fill_manual(values = c(col.DPE[c(1,3,5,7,9)]), name = "DPE") +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      labs(x = dt.ord.full.beta[[beta]]$axes.labs[1],
+           y = dt.ord.full.beta[[beta]]$axes.labs[2],
+           caption = paste0(beta)
+           ) +
+      theme(legend.position = "bottom") +
+      guides(fill=guide_legend(override.aes = list(shape = 21, fill = col.DPE[c(1,3,5,7,9)] )))
+
+})
+
+# Beta-dispersion Table
+# ord.beta <- c("bray", "canberra")
+beta.disp <- list()
+beta.disp <- lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Treatment)  %>% permutest(pairwise = T, permutations = 999)
+  
+}) %>% setNames(ord.beta)
+
+lapply(dist[c(1,2,4,5,6)], function(beta) {
+  set.seed(42)
+  betadisper(beta, group = data$Treatment)  %>% boxplot()
+  
+}) 
+
+# Anova
+lapply(beta.disp, function(beta) {
+  beta$tab %>% 
+    flextable()
+})
+
+# Permutation table
+lapply(beta.disp, function(beta) {
+  # print(beta)
+  beta$pairwise$permuted %>%
+    tidy() %>%
+    rename(Names = names,
+           `p-value` = x) %>%
+    flextable()
+})
+
+```

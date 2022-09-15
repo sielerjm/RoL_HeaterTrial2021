@@ -1,0 +1,422 @@
+---
+title: "Dada2 Processing: Forward Reads"
+"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+```{r}
+
+library(dada2); packageVersion("dada2")
+
+```
+
+## Paths
+
+```{r}
+
+
+# Important Paths
+path.code <- paste0(proj.path,"/Code")
+path.data <- paste0(proj.path,"/Data")
+path.input <- paste0(proj.path,"/Data/Input") 
+path.results <- paste0(proj.path,"/Results") 
+
+## Path to data files/sub-folders
+data.path <- path.data
+
+## Path to Robjects (Renv, Rds, Rdata, etc.) saved here
+objects.path <- paste0(data.path,  # Project path
+                                  "/Robjects")  # Sub-directory
+
+## Path to Output (Figures, Tables)
+output.path <- paste0(data.path,  # Project path
+                      "/Output/",  # Sub-directory
+                      "dada2_", packageVersion("dada2"),  # Dada2 Version
+                      "_", Sys.Date()  # Date
+                      )
+
+if (!dir.exists(output.path)) { dir.create(output.path) }
+
+## Path to Output (Figures, Tables)
+inDir <- paste0(data.path,  # Data path
+                           "/Input")  # Sub-directory
+
+fastq.dir <- file.path(data.path, "Raw/FastQs")
+
+taxa.db.path <- "/Users/michaelsieler/Dropbox/Mac (2)/Documents/Sharpton_Lab/Bioinformatics_files/silva_nr99_v138.1_train_set.fa" # path to database to be used for assigning taxonomy. Should be a gzipped FASTA file.
+
+```
+
+
+```{r}
+
+fastq.dir <- file.path(data.path, "Raw/FastQs") # CHANGE ME to the directory containing the fastq files after unzipping.
+
+list.files(fastq.dir)
+
+```
+
+
+```{r}
+
+# Forward and reverse fastq filenames have format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq
+fnFs <- sort(list.files(fastq.dir, pattern="_R1_001.fastq", full.names = TRUE))
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 3)
+
+# Make duplicate names unique adding a suffix
+sample.names <- make.names(sample.names,unique=T)
+
+```
+
+
+```{r}
+plotQualityProfile(fnFs[1:2])
+# plotQualityProfile(fnRs[1:2])
+
+```
+## Filter
+
+```{r}
+
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(fastq.dir, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+# filtRs <- file.path(fastq.dir, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+
+# Rename to cleaner file names
+names(filtFs) <- sample.names
+# names(filtRs) <- sample.names
+
+```
+
+
+
+### Filter and Trim
+
+```{r}
+out <- filterAndTrim(fnFs, filtFs, truncLen=240,
+              maxN=0, maxEE=2, truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+saveRDS(out, file=paste0(output.path, "/filterAndTrim.rds"))
+
+head(out)
+
+```
+
+
+
+
+## Error rates
+
+```{r}
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+plotErrors(errF, nominalQ=TRUE)
+
+saveRDS(errF, file=paste0(output.path, "/errF.rds"))
+
+```
+
+## Sample Inference
+
+```{r}
+
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaFs[[1]]
+
+saveRDS(dadaFs, file=paste0(output.path, "/dadaFs.rds"))
+
+```
+
+dada-class: object describing DADA2 denoising results
+167 sequence variants were inferred from 14111 input unique sequences.
+Key parameters: OMEGA_A = 1e-40, OMEGA_C = 1e-40, BAND_SIZE = 16
+
+
+## Construct Sequence Table
+
+```{r}
+
+seqtab <- makeSequenceTable(dadaFs)
+dim(seqtab)
+
+saveRDS(seqtab, file=paste0(output.path, "/seqtab.rds"))
+
+# Inspect distribution of sequence lengths
+table(nchar(getSequences(seqtab)))
+
+```
+
+
+## Remove Chimeras
+
+```{r}
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+
+saveRDS(seqtab.nochim, file=paste0(output.path, "/seqtab.nochim.rds"))
+
+dim(seqtab.nochim)
+sum(seqtab.nochim)/sum(seqtab)
+
+```
+
+## Track Reads
+
+```{r}
+
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "nonchim")
+rownames(track) <- sample.names
+head(track)
+
+```
+
+## Assign Taxonomy
+
+```{r}
+
+taxa <- assignTaxonomy(seqtab.nochim, taxa.db.path, multithread=TRUE)
+
+saveRDS(taxa, file=paste0(output.path, "/taxa.rds"))
+
+```
+
+## Inspect Taxonomy
+
+```{r}
+
+taxa.print <- taxa # Removing sequence rownames for display only
+rownames(taxa.print) <- NULL
+head(taxa.print)
+
+```
+
+## Clean up
+
+```{r}
+sample.names[duplicated(sample.names) == TRUE]
+length(sample.names)
+row.names(seqtab.nochim) <- sample.names
+
+saveRDS(seqtab.nochim, file=paste0(output.path, "/seqtab.nochim.rds"))
+
+```
+
+
+
+## Build Tree
+
+### Clean Metadata
+
+```{r}
+# Append ".1" to duplicate sample names
+metadata <- 
+  metadata %>%
+    filter(Repeat.Extract == 1) %>%
+    mutate(Sample = paste0(Sample, ".1")) %>%
+    rows_append(test.metadata,.) %>% 
+    arrange(Sample)
+
+# Find missing sample names between metadata and sample names, if character(0) then no discrepancies 
+metadata$Sample[metadata$Sample != sort(sample.names)]
+
+metadata$Sample <- factor(metadata$Sample, levels=sample.names)
+metadata <- metadata[order(metadata$Sample),]
+ps.metadata <- sample_data(metadata)
+rownames(ps.metadata) <- sample.names
+
+
+```
+
+
+### Build Phyloseq Object
+
+```{r}
+
+
+ps0 <- phyloseq(
+  otu_table(seqtab.nochim, taxa_are_rows = FALSE),
+  sam_data = ps.metadata,
+  tax_table(taxa)
+)
+  
+ps1 <- numbered.ASVs(
+  ps = ps0,
+  # prefix = paste0(proj.name, "_ASV"),
+  save.dir = output.path,
+  save.file = "asv_sequences"
+)
+  
+asv.seqs <- readRDS(file.path(output.path, "asv_sequences.rds"))
+
+seqinr::write.fasta(
+    sequences = as.list(asv.seqs),
+    names = taxa_names(ps1),
+    as.string = TRUE,
+    file.out = file.path(output.path, "asv_sequences.fasta")
+  )
+```
+
+
+
+```{r}
+dada2.finish_local(
+  fastq.path = fastq.dir,
+  truncFwd.len = 240,
+  truncRev.len = 225,
+  taxa.db = taxa.db.path,
+  metadata.file = file.path(inDir, "metadata.xlsx"),
+  ps1 = ps1,
+  paired = FALSE,
+  maxCores = 9,
+  build.tree = TRUE,
+  fasttree.path = "/Users/michaelsieler/Dropbox/Mac (2)/Documents/Sharpton_Lab/Bioinformatics_files/Symlinks",
+  user.output.path = output.path,
+  guide.seqs.file = NULL
+)
+```
+
+
+
+```{r}
+
+maxCores = 9
+build.tree = TRUE
+guide.seqs.file = NULL
+alignment.template.file = NULL
+fasttree.path = "/Users/michaelsieler/Dropbox/Mac (2)/Documents/Sharpton_Lab/Bioinformatics_files/Symlinks/FastTree"
+user.output.path = output.path
+paired = F
+force = FALSE
+
+
+if (is.null(user.output.path)) {
+  output <- run.env$output.path
+} else {
+  output <- user.output.path
+}
+# if (!any(file.exists(list.files(path = output, pattern = "qualPlot.pdf", full.names = T)))) {
+#   stop("Function 'dada2.upto.qualPlots()' must be run first.")
+# }
+if (build.tree) {
+  if (length(suppressWarnings(system("which mothur", intern = T))) == 0) {
+    stop(
+      "It appears you are trying to build a phylogenetic tree, but mothur is not installed on your system. Please install mothur and try again."
+    )
+  }
+  if (is.null(fasttree.path) | !file.exists(fasttree.path)) {
+    stop(
+      "It appears you are trying to build a phylogenetic tree, but you have not provided a viable path to FastTree."
+    )
+  }
+  if (is.null(guide.seqs.file)) {
+    writeLines(guide.seqs.lines, con = "guide_seqs.fasta")
+    guide.seqs.file <- "guide_seqs.fasta"
+  }
+  if (is.null(alignment.template.file)) {
+    writeLines(alignment.template.file.lines, con = "template.align")
+    alignment.template.file <- "template.align"
+  }
+  if (!(
+    guide.seqs.file %in% list.files() &
+    alignment.template.file %in% list.files()
+  )) {
+    stop(
+      paste(
+        "Files", guide.seqs.file, "and", alignment.template.file,
+        "must be in your current directory to build a tree."
+      )
+    )
+  }
+}
+
+if (build.tree) {
+  my.cat("Proceeding with phylogenetic tree:")
+  asv.seqs.file <- file.path(output, "asv_sequences.fasta")
+  asv.withguides.file  <- file.path(output, "asv_and_guide_seqs.fasta")
+  asv.tree.rooted.file <- file.path(output, "asv_NASTaligned_seqs.nwk")
+  
+  cmd <- paste0(
+    "cat '",
+    asv.seqs.file, "' '",
+    guide.seqs.file,
+    "' > '",
+    asv.withguides.file,"'"
+  )
+  system(cmd)
+  
+  my.cat("Aligning sequences...")
+  cmd <- paste0(
+    "mothur \"#align.seqs( fasta=",
+    asv.withguides.file,
+    ", reference=",
+    alignment.template.file,
+    ", flip=t",
+    ", keepdots=t",
+    ", processors=", maxCores = 9,
+    ", outputdir=",
+    output,
+    "/ )\""
+  )
+  system(cmd)
+  my.cat("\tDONE")
+  
+  mothur.output.file <- file.path(output, "asv_and_guide_seqs.align")
+  fasttree.log.file <- file.path(output, "fasttree.log")
+  fasttree.output.file <- file.path(output, "asv_and_guide_seqs.nwk")
+  
+  my.cat("Building phylogenetic tree...")
+  cmd <- paste0(
+    "export OMP_NUM_THREADS=",
+    maxCores = 9, "; '",
+    fasttree.path, "' -nt -nosupport -quote -gtr -gamma -log '",
+    fasttree.log.file,
+    "' '",
+    mothur.output.file,
+    "' > '",
+    fasttree.output.file,
+    "'"
+  )
+  system(cmd)
+  my.cat("\tDONE")
+  asvs.and.guides.tree <- read_tree(fasttree.output.file)
+  asvs.and.guides.tree.rooted <- phangorn::midpoint(asvs.and.guides.tree)
+  
+  guides <- scan(guide.seqs.file, what = "character" )
+  guide.ids <- guides[stringr::str_detect(guides, ">" )]
+  guide.ids <- stringr::str_remove(guide.ids, ">")
+  
+  asvs.tree.rooted <- ape::drop.tip(asvs.and.guides.tree.rooted, guide.ids)
+  write.tree(asvs.tree.rooted, file = asv.tree.rooted.file)
+  
+  phy_tree(ps1) <- phy_tree(asvs.tree.rooted)
+  system(paste0("mv mothur* '", output,"'"))
+}
+saveRDS(ps1, file = file.path(output, "phyloseq.rds"))
+for (file in c("tmp.txt", guide.seqs.file, alignment.template.file)) {
+  if (file.exists(file)) { file.remove(file) }
+}
+my.cat("\tDONE and DONE")
+  
+  
+```
+
+```{r}
+
+sessionInfo()
+
+writeLines(capture.output(sessionInfo()), "sessionInfo.txt")
+
+```
+

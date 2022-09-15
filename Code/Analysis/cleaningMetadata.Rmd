@@ -64,6 +64,12 @@ view(metadata.clean)
 # Save Metadata
 
 ```{r}
+metadata.clean <- read_excel(paste0(getwd(),"/../../Data/Metadata/metadata.xlsx"))
+View(metadata)
+```
+
+
+```{r}
 # Save old metadata 
 write_excel_csv(metadata, paste0(getwd(),"/../../Data/Metadata/metadata_OLD.csv")) 
 

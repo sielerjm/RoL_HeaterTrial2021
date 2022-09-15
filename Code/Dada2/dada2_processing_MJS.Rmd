@@ -62,10 +62,12 @@ list.files(fastq.dir)
 
 # Forward and reverse fastq filenames have format: SAMPLENAME_R1_001.fastq and SAMPLENAME_R2_001.fastq
 fnFs <- sort(list.files(fastq.dir, pattern="_R1_001.fastq", full.names = TRUE))
-fnRs <- sort(list.files(fastq.dir, pattern="_R2_001.fastq", full.names = TRUE))
+
 # Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
 sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 3)
 
+# Make duplicate names unique adding a suffix
+# make.names(sample.names,unique=T)
 
 
 ```
@@ -82,9 +84,9 @@ plotQualityProfile(fnRs[1:2])
 
 # Place filtered files in filtered/ subdirectory
 filtFs <- file.path(fastq.dir, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
-filtRs <- file.path(fastq.dir, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+# filtRs <- file.path(fastq.dir, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
 names(filtFs) <- sample.names
-names(filtRs) <- sample.names
+# names(filtRs) <- sample.names
 
 ```
 
@@ -284,5 +286,11 @@ my.cat("Proceeding with phylogenetic tree:")
     
     phy_tree(ps1) <- phy_tree(asvs.tree.rooted)
     system(paste("mv mothur*", output))
+```
+
+```{r}
+
+sessionInfo()
+
 ```
 
