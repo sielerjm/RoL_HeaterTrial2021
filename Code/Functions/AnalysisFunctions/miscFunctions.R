@@ -263,7 +263,7 @@ glm_formula <- function(mod){
 # Input: 
 # Output: 
 
-glm_formula <- function(mod){
+capscale_formula <- function(mod){
   
   return(
     paste0("capscale(",

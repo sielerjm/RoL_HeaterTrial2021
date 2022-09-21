@@ -34,11 +34,11 @@ col.TempDPE <- c(RColorBrewer::brewer.pal(9, "Blues")[c(1,3,5,7,9)],
                  RColorBrewer::brewer.pal(9, "Greens")[c(1,3,5,7,9)],
                  RColorBrewer::brewer.pal(9, "Reds")[c(1,3,5,7,9)])
 
-tmp.breaks <- c("28C_0", "32C_0", "35C_0", 
-                "28C_14", "32C_14", "35C_14", 
-                "28C_21", "32C_21", "35C_21", 
-                "28C_28", "32C_28", "35C_28", 
-                "28C_42", "32C_42", "35C_42"
+tmp.breaks <- c("28°C_0", "32°C_0", "35°C_0", 
+                "28°C_14", "32°C_14", "35°C_14", 
+                "28°C_21", "32°C_21", "35°C_21", 
+                "28°C_28", "32°C_28", "35°C_28", 
+                "28°C_42", "32°C_42", "35°C_42"
                 )
 
 tmp.breaks.col <- c(col.TempDPE[1], col.TempDPE[6], col.TempDPE[11], 
@@ -115,7 +115,8 @@ Does temperature affect infection? Furthermore, does sex or days post exposure m
 
 metadata %>%
   filter(Treatment == "Exposed") %>%
-  filter(!is.na(Sex)) %>% 
+  mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
+  filter(!is.na(Sex) & !is.na(Total.Worm.Count)) %>% 
   # group_by(Temperature, DPE) %>%
   # summarize(Count = sum(Total.Worm.Count)) %>%
   # replace(is.na(.), 0) %>%
@@ -136,16 +137,17 @@ metadata %>%
 
 metadata %>%
   filter(Treatment == "Exposed") %>%
+  mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
   filter(!is.na(Sex)) %>% 
   group_by(Temperature, DPE) %>%
   summarize(Count = sum(Total.Worm.Count)) %>% 
   replace(is.na(.), 0) %>%
   ggplot(aes(x = as.factor(DPE), y = Count, group = Temperature)) +
-  geom_point(aes(color = Temperature), na.rm = FALSE) +
-  geom_line(aes(color = Temperature), na.rm = FALSE) +
+  geom_point(aes(color = Temperature), size = 2, na.rm = FALSE) +
+  geom_line(aes(color = Temperature), size = 1.5, na.rm = FALSE) +
   geom_label_repel(aes(label = Count)) +
   # facet_grid(Sex~., scales = "free") +
-  labs(title = "Distribution worm counts across temperature",
+  labs(#title = "Distribution worm counts across temperature",
        x = "Days post exposure (DPE)",
        color = "DPE") +
   theme(legend.position = "bottom") + 
@@ -154,16 +156,19 @@ metadata %>%
 
 metadata %>%
   filter(Treatment == "Exposed") %>%
+  mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
+  mutate(Sex = case_when(Sex == "F" ~ "Female",
+                         Sex == "M" ~ "Male")) %>%
   filter(!is.na(Sex)) %>% 
-  group_by(Temperature, Sex, DPE) %>%
+  group_by(Sex, Temperature, DPE) %>%
   summarize(Count = sum(Total.Worm.Count)) %>% 
   replace(is.na(.), 0) %>%
   ggplot(aes(x = as.factor(DPE), y = Count, group = Temperature)) +
-  geom_point(aes(color = Temperature), na.rm = FALSE) +
-  geom_line(aes(color = Temperature), na.rm = FALSE) +
+  geom_point(aes(color = Temperature), size = 2, na.rm = FALSE) +
+  geom_line(aes(color = Temperature), size = 1.5, na.rm = FALSE) +
   geom_label_repel(aes(label = Count)) +
-  facet_grid(Sex~., scales = "free") +
-  labs(title = "Distribution worm counts across temperature",
+  facet_grid(.~Sex, scales = "free") +
+  labs(#title = "Distribution worm counts across temperature",
        x = "Days post exposure (DPE)",
        color = "DPE") +
   theme(legend.position = "bottom") + 
@@ -305,7 +310,7 @@ data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
 ```{r}
 
 data.alpha %>%
-  # filter(Alpha.Metric == "Simpson") %>%
+  filter(Alpha.Metric == "Simpson") %>%
     ggplot(aes(x = as.factor(DPE), 
                y = Alpha.Score
                )) +
@@ -401,7 +406,7 @@ lapply(methods.alpha, function(x){
 # Tukey's Pairwise Comparison
 tukey.test.list %>%
   bind_rows() %>%
-  filter(metric == "Simpson") %>%
+  filter(metric == "Phylogenetic") %>%
   flextable() %>%
   align(j = 3:6, align = "right") %>%
   colformat_double(j = 6:10, digits = 3) %>%
@@ -428,13 +433,13 @@ tukey.test.list %>%
 dist <- distList.conT0TF
 
 # Full dbRDA models
-mod <- full_dbrda_model(vars = c("Temperature"),  # Enter variables as a list "c(var.A, var.B, var.C)"
+mod <- full_dbrda_model(vars = c("Temperature", "DPE"),  # Enter variables as a list "c(var.A, var.B, var.C)"
                           distance = dist,
                           methods = methods.beta,
                           names = set_names_beta,
                           physeq = ps.obj,
                           data = data,
-                          terms = 1,  # if you want interaction terms enter 2, otherwise 1
+                          terms = 2,  # if you want interaction terms enter 2, otherwise 1
                           num.cores = num.cores
                         )
 
@@ -459,7 +464,7 @@ lapply(methods.beta, function(beta){
   
   
   dt.ord.full.beta[[beta]]$sample.coords %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     ggplot(aes(x = CAP1, y = CAP2)) +
       stat_ellipse(aes(linetype = Temperature)) +
       geom_point(aes(fill = Temp.DPE),
@@ -521,7 +526,7 @@ data.beta <- lapply(ord.beta, function(beta){
 lapply(ord.beta, function(beta){
   
   data.beta[[beta]] %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     # mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
     # mutate(Total.Worm.Count = ifelse(is.na(Total.Worm.Count), 0, Total.Worm.Count)) %>%
     ggplot(aes(x = Axis.1, y = Axis.2)) +
@@ -615,7 +620,7 @@ data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
 ```{r, fig.width=8}
 
 data.alpha %>%
-  # filter(Alpha.Metric == "Simpson") %>%
+  filter(Alpha.Metric == "Simpson") %>%
     ggplot(aes(x = as.factor(DPE), 
                y = Alpha.Score
                )) +
@@ -737,13 +742,13 @@ tukey.test.list %>%
 dist <- distList.expT0TF
 
 # Full dbRDA models
-mod <- full_dbrda_model(vars = c("Temperature"),  # Enter variables as a list "c(var.A, var.B, var.C)"
+mod <- full_dbrda_model(vars = c("Temperature", "DPE"),  # Enter variables as a list "c(var.A, var.B, var.C)"
                           distance = dist,
                           methods = methods.beta,
                           names = set_names_beta,
                           physeq = ps.obj,
                           data = data,
-                          terms = 1,  # if you want interaction terms enter 2, otherwise 1
+                          terms = 2,  # if you want interaction terms enter 2, otherwise 1
                           num.cores = num.cores
                         )
 
@@ -768,7 +773,7 @@ lapply(methods.beta, function(beta){
   
   
   dt.ord.full.beta[[beta]]$sample.coords %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     ggplot(aes(x = CAP1, y = CAP2)) +
       stat_ellipse(aes(linetype = Temperature)) +
       geom_point(aes(fill = Temp.DPE),
@@ -825,11 +830,11 @@ beta.dt.full <- samp_coord_dt(dt.ord.full.beta, methods.beta)
 beta.axis.full <- axis_labels(dt.ord.full.beta)
 
 # Custom Col
-tmp.breaks <- c("28C_0", "32C_0", "35C_0", 
-                "28C_14", "32C_14", "35C_14", 
-                "28C_21", "32C_21", "35C_21", 
-                "28C_28", "32C_28", "35C_28", 
-                "28C_42", "32C_42", "35C_42"
+tmp.breaks <- c("28°C_0", "32°C_0", "35°C_0", 
+                "28°C_14", "32°C_14", "35°C_14", 
+                "28°C_21", "32°C_21", "35°C_21", 
+                "28°C_28", "32°C_28", "35°C_28", 
+                "28°C_42", "32°C_42", "35°C_42"
                 )
 
 tmp.breaks.col <- c(col.TempDPE[1], col.TempDPE[6], col.TempDPE[11], 
@@ -849,7 +854,7 @@ lapply(methods.beta, function(beta){
   
   
   dt.ord.full.beta[[beta]]$sample.coords %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
     mutate(Total.Worm.Count = ifelse(is.na(Total.Worm.Count), 0, Total.Worm.Count)) %>%
     ggplot(aes(x = CAP1, y = CAP2)) +
@@ -869,7 +874,7 @@ lapply(methods.beta, function(beta){
       theme(legend.position = "none") +
       guides(fill=guide_legend(override.aes = list(size = 2, shape = 21, fill = tmp.breaks.col )))
 
-})#[1:2]
+})[1]
 
 
 
@@ -909,7 +914,7 @@ data.beta <- lapply(ord.beta, function(beta){
 lapply(ord.beta, function(beta){
   
   data.beta[[beta]] %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
     mutate(Total.Worm.Count = ifelse(is.na(Total.Worm.Count), 0, Total.Worm.Count)) %>%
     ggplot(aes(x = Axis.1, y = Axis.2)) +
@@ -998,7 +1003,7 @@ data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
 ```{r, fig.width=8}
 
 data.alpha %>%
-  filter(Alpha.Metric == "Simpson" | Alpha.Metric == "Phylogenetic") %>%
+  # filter(Alpha.Metric == "Phylogenetic" ) %>%
     ggplot(aes(x = as.factor(DPE), 
                y = Alpha.Score
                )) +
@@ -1089,7 +1094,7 @@ lapply(methods.alpha, function(x){
       mutate(sig = ifelse(p.value <= 0.05, "*", "")) %>%
     arrange(desc(abs(statistic)))
 }) %>% bind_rows() %>%
-    filter(metric == "Simpson") %>%
+    filter(metric == "Phylogenetic") %>%
     flextable() %>%
     # align(j = 3:6, align = "right") %>%
     colformat_double(j = 3, digits = 3) %>%
@@ -1148,11 +1153,11 @@ dt.ord.full.beta <- ord_dt_list(mod, ps.obj)
 beta.dt.full <- samp_coord_dt(dt.ord.full.beta, methods.beta)
 beta.axis.full <- axis_labels(dt.ord.full.beta)
 
-tmp.breaks <- c("28C_0", "32C_0", "35C_0", 
-                "28C_14", "32C_14", "35C_14", 
-                "28C_21", "32C_21", "35C_21", 
-                "28C_28", "32C_28", "35C_28", 
-                "28C_42", "32C_42", "35C_42"
+tmp.breaks <- c("28°C_0", "32°C_0", "35°C_0", 
+                "28°C_14", "32°C_14", "35°C_14", 
+                "28°C_21", "32°C_21", "35°C_21", 
+                "28°C_28", "32°C_28", "35°C_28", 
+                "28°C_42", "32°C_42", "35°C_42"
                 )
 
 tmp.breaks.col <- c(col.TempDPE[1], col.TempDPE[6], col.TempDPE[11], 
@@ -1172,7 +1177,7 @@ lapply(methods.beta, function(beta){
   
   
   dt.ord.full.beta[[beta]]$sample.coords %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     ggplot(aes(x = CAP1, y = CAP2)) +
       stat_ellipse(aes(linetype = Temperature)) +
       geom_point(aes(fill = Temp.DPE, #as.factor(DPE),
@@ -1231,7 +1236,7 @@ data.beta <- lapply(ord.beta, function(beta){
 lapply(ord.beta, function(beta){
   
   data.beta[[beta]] %>%
-    mutate(Temp.DPE = paste0(Temperature,"C_",DPE)) %>%
+    mutate(Temp.DPE = paste0(Temperature,"°C_",DPE)) %>%
     ggplot(aes(x = Axis.1, y = Axis.2)) +
       stat_ellipse(aes(linetype = Temperature)) +
       geom_point(aes(fill = Temp.DPE,
