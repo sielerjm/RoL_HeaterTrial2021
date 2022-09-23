@@ -45,7 +45,7 @@ my_theme <- theme_update(
   legend.text = element_text(size = 12),
   legend.key = element_rect(fill = "white"),
   legend.key.size = unit(1, "line"), # legend symbol size
-  legend.spacing.y = unit(-.25, 'cm'),
+  legend.spacing.y = unit(0, 'cm'),
   
   strip.text = element_text(size = 12),
   

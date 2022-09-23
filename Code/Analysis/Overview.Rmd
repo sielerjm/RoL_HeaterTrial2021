@@ -135,6 +135,10 @@ metadata %>%
 
 ```{r}
 
+# Worm count
+
+## Line plot
+
 metadata %>%
   filter(Treatment == "Exposed") %>%
   mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
@@ -152,6 +156,30 @@ metadata %>%
        color = "DPE") +
   theme(legend.position = "bottom") + 
   scale_color_manual(values = pal.Spectral[c(9,8,1)])
+
+## Bar plot
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, DPE) %>%
+  summarize(Count = sum(Total.Worm.Count)) %>% 
+  replace(is.na(.), 0) %>%
+  ggplot(aes(x = as.factor(DPE), y = Count, fill = Temperature)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_text(aes(label = Count, y = Count+4, x=as.factor(DPE)),
+            size = 5, 
+            position = position_dodge(width=0.9),
+           fontface = "bold"
+           ) +
+  labs(#title = "Distribution worm counts",
+       y = "# Worms",
+       x = "Days Post Exposure",
+       fill = "Temp (°C)"
+       ) +
+  theme(legend.position = "right") + 
+  scale_fill_manual(values = pal.Spectral[c(9,8,1)]) 
 
 
 metadata %>%
@@ -1385,3 +1413,5 @@ lapply(beta.disp, function(beta) {
 })
 
 ```
+
+
