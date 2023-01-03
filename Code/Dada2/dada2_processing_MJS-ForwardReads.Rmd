@@ -234,7 +234,7 @@ metadata$Sample[metadata$Sample != sort(sample.names)]
 metadata$Sample <- factor(metadata$Sample, levels=sample.names)
 metadata <- metadata[order(metadata$Sample),]
 ps.metadata <- sample_data(metadata)
-rownames(ps.metadata) <- sample.names
+rownames(ps.metadata) <- sample.names.dupe.F
 
 
 ```
@@ -297,7 +297,7 @@ guide.seqs.file = NULL
 alignment.template.file = NULL
 fasttree.path = "/Users/michaelsieler/Dropbox/Mac (2)/Documents/Sharpton_Lab/Bioinformatics_files/Symlinks/FastTree"
 user.output.path = output.path
-paired = F
+paired = T
 force = FALSE
 
 
@@ -400,10 +400,10 @@ if (build.tree) {
   asvs.tree.rooted <- ape::drop.tip(asvs.and.guides.tree.rooted, guide.ids)
   write.tree(asvs.tree.rooted, file = asv.tree.rooted.file)
   
-  phy_tree(ps1) <- phy_tree(asvs.tree.rooted)
+  phy_tree(ps0) <- phy_tree(asvs.tree.rooted)
   system(paste0("mv mothur* '", output,"'"))
 }
-saveRDS(ps1, file = file.path(output, "phyloseq.rds"))
+saveRDS(ps0, file = file.path(output, "phyloseq.rds"))
 for (file in c("tmp.txt", guide.seqs.file, alignment.template.file)) {
   if (file.exists(file)) { file.remove(file) }
 }
@@ -418,5 +418,65 @@ sessionInfo()
 
 writeLines(capture.output(sessionInfo()), "sessionInfo.txt")
 
+```
+
+```{r}
+my.cat("Proceeding with phylogenetic tree:")
+  asv.seqs.file <- file.path(output, "asv_sequences.fasta")
+  asv.withguides.file  <- file.path(output, "asv_and_guide_seqs.fasta")
+  asv.tree.rooted.file <- file.path(output, "asv_NASTaligned_seqs.nwk")
+  
+  cmd <- paste0(
+    "cat '",
+    asv.seqs.file, "' '",
+    guide.seqs.file,
+    "' > '",
+    asv.withguides.file,"'"
+  )
+  system(cmd)
+  
+  my.cat("Aligning sequences...")
+  cmd <- paste0(
+    "mothur \"#align.seqs( fasta=",
+    asv.withguides.file,
+    ", reference=",
+    alignment.template.file,
+    ", flip=t",
+    ", keepdots=t",
+    ", processors=", maxCores = 9,
+    ", outputdir=",
+    output,
+    "/ )\""
+  )
+  system(cmd)
+  my.cat("\tDONE")
+  
+  mothur.output.file <- file.path(output, "asv_and_guide_seqs.align")
+  fasttree.log.file <- file.path(output, "fasttree.log")
+  fasttree.output.file <- file.path(output, "asv_and_guide_seqs.nwk")
+  
+  my.cat("Building phylogenetic tree...")
+  cmd <- paste0(
+    "export OMP_NUM_THREADS=",
+    maxCores = 9, "; '",
+    fasttree.path, "' -nt -nosupport -quote -gtr -gamma -log '",
+    fasttree.log.file,
+    "' '",
+    mothur.output.file,
+    "' > '",
+    fasttree.output.file,
+    "'"
+  )
+  system(cmd)
+  my.cat("\tDONE")
+  asvs.and.guides.tree <- read_tree(fasttree.output.file)
+  asvs.and.guides.tree.rooted <- phangorn::midpoint(asvs.and.guides.tree)
+  
+  guides <- scan(guide.seqs.file, what = "character" )
+  guide.ids <- guides[stringr::str_detect(guides, ">" )]
+  guide.ids <- stringr::str_remove(guide.ids, ">")
+  
+  asvs.tree.rooted <- ape::drop.tip(asvs.and.guides.tree.rooted, guide.ids)
+  write.tree(asvs.tree.rooted, file = asv.tree.rooted.file)
 ```
 

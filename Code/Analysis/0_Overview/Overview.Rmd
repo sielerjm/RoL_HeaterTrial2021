@@ -1,0 +1,24 @@
+---
+title: "Overview"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+df.all %>%
+  filter(Treatment != "Control") %>%
+  # group_by(Temperature) %>%
+  group_by(DPE) %>%
+  # group_by(Temperature, Treatment) %>%
+  # group_by(Temperature, Treatment, DPE) %>%
+  count()
+
+```
+

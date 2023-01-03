@@ -418,12 +418,32 @@ euc_Dist <- function(data, x, y, cen.x, cen.y) {
     )
 }
 
-# -------------------------------------------------------------------------
-# Description: 
+# Num Stat Sig Comp  -------------------------------------------------------------------------
+# Description: Returns a number of statistically significant comparisons 
+# Input: 
+# Output: Returns number of significant comparisons (e.g., 6)
+
+numStatSigComp <- function(tmp.data){
+  return(
+    length(which(tmp.data$p.adj.signif != "ns")) - 1 # Returns number of significant comparisons (e.g., 6)
+  )
+}
+
+# Seq Stat Sig Comp  -------------------------------------------------------------------------
+# Description: Returns a number of statistically significant comparisons 
 # Input: 
 # Output: 
 
-
+seqStatSigComp <- function(tmp.data){
+  return(
+    seq.int(1,  # Sequences starts at 1
+            ((
+              numStatSigComp(tmp.data)  # Returns number of significant comparisons (e.g., 6)
+              * 0.075) # Multiply that number by 0.075, which is the distance between significance lines
+             + 1), # Add one to get your "max" value or where the sequences will end
+            by = 0.075)  # The seq function will go from start to end integars by this value
+  )
+}
 
 
 # -------------------------------------------------------------------------

@@ -1,0 +1,119 @@
+---
+title: "Temperature: Abundance"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Global Variables
+
+This chunk of code grabs the relevant data frames/tables generated from the `microbiomeProcessing.R` script for analysis.
+
+```{r}
+
+data <- df.expT0TF
+data.alpha <- dt.alphaPlus.expT0TF.melt
+ps.obj <- ps.expT0TF
+dist <- distList.expT0TF
+# data.diffAb <- diffAb.expT0TF
+
+data.alpha <-
+  data.alpha %>%
+    mutate(Temperature = as.factor(Temperature),
+           DPE = as.factor(DPE)
+           )
+
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c(28, 32, 35))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+data.alpha$Temperature
+
+levels(data.alpha$DPE) <- factor(levels(data.alpha$DPE), levels = c(0, 14, 21, 28, 42))
+data.alpha$DPE <- relevel(factor(data.alpha$DPE), ref = "0")
+data.alpha$DPE
+
+
+# levels(data.alpha$Treatment) <- factor(levels(data.alpha$Treatment), levels = c("Control", "Exposed"))
+# data.alpha$Treatment <- relevel(factor(data.alpha$Treatment), ref = "Control")
+# data.alpha$Treatment
+
+```
+
+
+### Bar Plot
+
+```{r}
+
+ps.obj %>%
+  # phyloseq::merge_samples(group = "Temperature") %>%
+  # ps_filter(gender == "female") %>%
+  comp_barplot(
+    tax_level = "Genus",
+    # sample_order = c("0", "14", "21", "28", "42"),
+    # sample_order = c("28", "32", "35"),
+    # ncol = 5,
+    label = NULL, #"DiseaseState", # name an alternative variable to label axis
+    n_taxa = 15, # give more taxa unique colours
+    taxon_renamer = function(x) stringr::str_replace_all(x, "_", " "), # remove underscores
+    other_name = "Other genera", # set custom name for the "other" category
+    merge_other = T, # split the "Other" category to display alpha diversity
+    bar_width = 0.7, # reduce the bar width to 70% of one row
+    bar_outline_colour = "grey5" # is the default (use NA to remove outlines)
+  ) + facet_wrap(. ~ Temperature + DPE, scales = "free", ncol = 5) + 
+  theme(legend.position="bottom")
+
+```
+
+### Heatmap
+
+```{r}
+
+ps.obj  %>% 
+  tax_filter(min_prevalence = 10) %>% 
+  tax_transform("compositional", rank = "Phylum") %>% 
+  comp_heatmap(
+    tax_anno = taxAnnotation(
+      Prev. = anno_tax_prev(bar_width = 0.3, size = grid::unit(1, "cm"))
+    ),
+    sample_anno = sampleAnnotation(
+      Temperature = anno_sample_cat(
+        var = "Temperature", col = col.Temp, box_col = NA, border_col = "black",
+        legend_title = "Temperature"
+      ),
+      DPE = anno_sample_cat(
+        var = "DPE", col = col.DPE, box_col = NA, border_col = "black",
+        legend_title = "DPE"
+      )
+    )
+  ) 
+
+
+```
+
+### Variable Correlation
+
+
+```{r}
+
+ps.obj %>% 
+  # ps_mutate(Treatment = as.numeric(factor(Treatment))) %>%
+  tax_agg("Family") %>% 
+  cor_heatmap(
+    taxa = tax_top(ps.obj, 15, by = max, rank = "Family"),
+    vars = c("Temperature", "DPE"), 
+    tax_anno = taxAnnotation(
+      Prev. = anno_tax_prev(ylim = 0:1), 
+      Log10. = anno_tax_box(trans = "log10", zero_replace = "halfmin")
+    ),
+   colors = heat_palette("Green-Orange", rev = T, sym = TRUE)#,
+   # var_anno = varAnnotation(Val. = anno_var_box(size = grid::unit(2, "cm")))
+  )
+
+```
+
+
+

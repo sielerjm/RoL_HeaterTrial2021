@@ -1,0 +1,184 @@
+---
+title: "Temperature: Beta Diversity Analysis"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Global Variables
+
+This chunk of code grabs the relevant data frames/tables generated from the `microbiomeProcessing.R` script for analysis.
+
+```{r}
+
+data <- df.conT0TF
+data.alpha <- dt.alphaPlus.conT0TF.melt
+ps.obj <- ps.conT0TF
+dist <- distList.conT0TF
+# data.diffAb <- diffAb.conT0TF
+
+# data.alpha <- 
+#   data.alpha %>%
+#     mutate(Temperature = as.factor(Temperature),
+#            DPE = as.factor(DPE)
+#            )
+
+
+# levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c(28, 32, 35))
+# data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+# data.alpha$Temperature
+# 
+# levels(data.alpha$DPE) <- factor(levels(data.alpha$DPE), levels = c(0, 14, 21, 28, 42))
+# data.alpha$DPE <- relevel(factor(data.alpha$DPE), ref = "0")
+# data.alpha$DPE
+```
+
+### Beta Diversity
+
+Saves images to following directory
+
+```{r}
+
+tmp.path <- "Temp/Beta"
+# Plot settings
+gg_record(dir = file.path(path.results, tmp.path),
+          device = "png",
+          width = 5,
+          height = 5,
+          units = "in"
+          )
+
+
+```
+
+
+
+### Bray-Curtis
+
+```{r}
+
+ps.all %>%
+  ps_mutate(
+    Temp.DPE = paste0(Temperature,"°C_",DPE)
+  ) %>%
+  tax_transform(trans = "compositional", rank = "Genus") %>% 
+  dist_calc(dist = "bray") %>%
+  ord_calc(method = "PCA") %>% 
+  ord_plot(fill = "Temp.DPE", shape = "Treatment", size = 3) +
+      scale_fill_manual(values = tmp.breaks.col, name = "Temp & DPE", breaks = tmp.breaks) +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+  theme(legend.position = "none")
+
+
+```
+
+
+
+
+
+```{r, fig.width=10, fig.height=4.5}
+ps.all %>%
+  ps_mutate(
+    Temp.DPE = paste0(Temperature,"°C_",DPE),
+    Temperature = as.factor(Temperature),
+    DPE = as.factor(DPE),
+    Treatment. = as.numeric(Treatment == "Exposed"),
+    Temperature. = as.numeric(Temperature),
+    DPE. = as.numeric(DPE)
+  ) %>%
+  tax_transform(trans = "compositional", rank = "Genus") %>% 
+  dist_calc(dist = "bray") %>%
+  # ord_calc() %>%
+  ord_calc(method = "CAP", constraints = c("Treatment.", "Temperature.", "DPE.")) %>%
+  ord_plot(fill = "Temp.DPE", shape = "Treatment", size = 3,
+           constraint_vec_style = vec_constraint(linewidth = 2),
+           constraint_lab_style = constraint_lab_style(alpha = 0.8, size = 5)
+           ) +
+      scale_fill_manual(values = tmp.breaks.col, name = "Temp & DPE", breaks = tmp.breaks) +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+  theme(legend.position = "none")
+
+
+
+```
+#### Small cluster
+
+```{r, fig.width=2, fig.height=2}
+
+ps.all %>%
+  ps_mutate(
+    Temp.DPE = paste0(Temperature,"°C_",DPE),
+    Temperature = as.factor(Temperature),
+    DPE = as.factor(DPE),
+    Treatment.c = as.numeric(Treatment == "Exposed"),
+    Temperature.c = as.numeric(Temperature),
+    DPE.c = as.numeric(DPE)
+  ) %>%
+  tax_transform(trans = "compositional", rank = "Genus") %>% 
+  dist_calc(dist = "bray") %>%
+  # ord_calc() %>%
+  ord_calc(method = "CAP", constraints = c("Treatment.c", "Temperature.c", "DPE.c")) %>%
+  ord_plot(fill = "Temp.DPE", shape = "Treatment", size = 3) +
+      scale_fill_manual(values = tmp.breaks.col, name = "Temp & DPE", breaks = tmp.breaks) +
+      scale_shape_manual(values = c(21:25)) +
+      scale_color_manual(values = "black" ) +
+      coord_cartesian(ylim=c(0.6, 0.85), xlim=c(2.65, 2.75)) +
+  theme(legend.position = "none")
+
+```
+
+### Phylogenetic (gen Unifrac)
+
+```{r fig.height=4.5, fig.width=10, warning=FALSE}
+
+plot.Beta_TempTreatDPE_Gunifrac_Full <-
+  ps.all %>%
+    ps_mutate(
+      Temp.DPE = paste0(Temperature,"°C_",DPE),
+      Temperature = as.factor(Temperature),
+      DPE = as.factor(DPE),
+      Treatment. = as.numeric(Treatment == "Exposed"),
+      Temperature. = as.numeric(Temperature),
+      DPE. = as.numeric(DPE)
+    ) %>%
+    tax_transform("identity", rank = "unique") %>% 
+    dist_calc("gunifrac", gunifrac_alpha = 0.5) %>%
+    # ord_calc() %>%
+    ord_calc(method = "CAP", constraints = c("Treatment.",
+                                             "Temperature.",
+                                             "DPE."
+                                             )
+             ) %>%
+    ord_plot(fill = "Temp.DPE", shape = "Treatment", size = 3,
+             constraint_vec_style = vec_constraint(linewidth = 2),
+             constraint_lab_style = constraint_lab_style(alpha = 0.8, size = 5)
+             ) +
+        scale_fill_manual(values = tmp.breaks.col, name = "Temp & DPE", breaks = tmp.breaks) +
+        scale_shape_manual(values = c(21:25)) +
+        scale_color_manual(values = "black" ) +
+    theme(legend.position = "none")
+
+  
+plot.Beta_TempTreatDPE_Gunifrac_Full
+
+```
+
+#### Small cluster
+
+```{r, fig.width=2, fig.height=2}
+
+plot.Beta_TempTreatDPE_Gunifrac_Full +
+      coord_cartesian(ylim=c(0.65, 1.35), xlim=c(2.2, 2.6)) +
+  theme(legend.position = "none")
+
+plot.Beta_TempTreatDPE_Gunifrac_Full +
+      coord_cartesian(ylim=c(1.05, 1.225), xlim=c(2.475, 2.6)) +
+  theme(legend.position = "none")
+
+```

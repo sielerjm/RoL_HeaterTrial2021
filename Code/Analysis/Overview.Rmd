@@ -1,7 +1,7 @@
 ---
 title: "Overview"
 author: "Michael Sieler"
-date: "2022-09-07"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
@@ -159,6 +159,7 @@ metadata %>%
 
 ## Bar plot
 
+### Total
 metadata %>%
   filter(Treatment == "Exposed") %>%
   mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
@@ -181,6 +182,33 @@ metadata %>%
   theme(legend.position = "right") + 
   scale_fill_manual(values = pal.Spectral[c(9,8,1)]) 
 
+### Sex effects?
+
+metadata %>%
+  filter(Treatment == "Exposed") %>%
+  mutate(Total.Worm.Count = as.numeric(Total.Worm.Count)) %>%
+  filter(!is.na(Sex)) %>% 
+  group_by(Temperature, DPE, Sex) %>%
+  summarize(Count = sum(Total.Worm.Count)) %>% 
+  replace(is.na(.), 0) %>%
+  ggplot(aes(x = as.factor(DPE), y = Count, fill = Sex)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_text(aes(label = Count, y = Count+4, x=as.factor(DPE)),
+            size = 5, 
+            position = position_dodge(width=0.9),
+           fontface = "bold"
+           ) +
+  facet_grid(.~Temperature, scales = "free") +
+  labs(#title = "Distribution worm counts",
+       y = "# Worms",
+       x = "Days Post Exposure",
+       fill = "Sex"
+       ) +
+  theme(legend.position = "right") + 
+  scale_fill_manual(values = pal.Dark2) 
+
+
+###
 
 metadata %>%
   filter(Treatment == "Exposed") %>%

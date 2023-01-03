@@ -42,7 +42,7 @@ output.path <- paste0(data.path,  # Project path
                                  "/Output")  # Sub-directory
 
 ## Path to Output (Figures, Tables)
-inDir <- paste0(data.path,  # Data path
+inDir <- paste0(path.data,  # Data path
                            "/Input")  # Sub-directory
 
 # list.files(inDir)  # Check that it contains what you expect
@@ -195,14 +195,14 @@ dada2.upto.qualPlots(
 ### Proceeding with paired reads # (forward only or both)
 
 ###### Finish dada2 processing ######
-dada2.finish_local(
+ dada2.finish_local(
   fastq.path = fastq.dir,
   truncFwd.len = 225,
   truncRev.len = 200,
   taxa.db = taxa.db.path,
   metadata.file = file.path(inDir, metadata.filename),
   paired = TRUE,
-  maxCores = cores,
+  maxCores = 9,
   build.tree = TRUE,
   fasttree.path = fasttree.path
   # user.output.path = output.path
@@ -224,7 +224,7 @@ if (cleanup) {
 
 
 # Save Environment
-save_env(objects.path, extra_info = "_DADA2_pipeline_output")
+save.image(output.path)
 
 # End Timer ---------------------------------------------------------------
 end_time <- Sys.time()

@@ -1,0 +1,283 @@
+---
+title: "Temperature: Beta Diversity Analysis"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Global Variables
+
+This chunk of code grabs the relevant data frames/tables generated from the `microbiomeProcessing.R` script for analysis.
+
+```{r}
+
+data <- df.expT0TF
+data.alpha <- dt.alphaPlus.expT0TF.melt
+ps.obj <- ps.expT0TF
+dist <- distList.expT0TF
+methods.beta.plot <- c("bray", "canberra", "gunifrac")
+
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c(28, 32, 35))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+data.alpha$Temperature
+
+levels(data.alpha$DPE) <- factor(levels(data.alpha$DPE), levels = c(0, 14, 21, 28, 42))
+data.alpha$DPE <- relevel(factor(data.alpha$DPE), ref = "0")
+data.alpha$DPE
+```
+
+Saves images to following directory
+
+```{r}
+
+tmp.path <- "Temp/Beta"
+# Plot settings
+gg_record(dir = file.path(path.results, tmp.path),
+          device = "png",
+          width = 5,
+          height = 5,
+          units = "in"
+          )
+
+
+```
+
+
+## Unconstained
+
+### Build Distance Matrices and Plots
+
+```{r, warning=FALSE}
+
+beta.dist.mat.uncon.list <- list()
+beta.plot.uncon.list <- list()
+
+beta.dist.mat.uncon.list <- lapply(methods.beta.plot, function(beta){
+  ps.obj %>%
+    ps_mutate(
+      Temp.DPE = paste0(Temperature,"°C_",DPE)
+    ) %>%
+    tax_transform(trans = "identity", 
+                  rank = ifelse(beta == "gunifrac", "unique", "Genus")
+                  ) %>% 
+    dist_calc(dist = beta) 
+}) %>% 
+  setNames(methods.beta.plot)
+
+beta.plot.uncon.list <-
+  lapply(beta.dist.mat.uncon.list, function(beta){
+    beta %>%
+    ord_calc(method = "PCoA") %>% 
+    ord_plot(fill = "Temp.DPE", shape = 22, size = 3) +
+        scale_fill_manual(values = col.TempDPE, name = "Temp_DPE", breaks = TempDPE.breaks) +
+        scale_shape_manual(values = c(21:25)) +
+        scale_color_manual(values = "black" ) +
+        theme(legend.position = "bottom")
+}) %>%
+  setNames(methods.beta.plot)
+
+```
+
+#### Plots
+
+```{r, fig.width=10, fig.height=4.5}
+
+beta.plot.uncon.list
+
+```
+
+
+## Constrained
+
+### Build Distance Matrices and Plots
+
+```{r message=FALSE, warning=FALSE}
+
+beta.dist.mat.con.list <- list()
+beta.plot.con.list <- list()
+
+beta.dist.mat.con.list <- lapply(methods.beta.plot, function(beta){
+  ps.obj %>%
+    ps_mutate(
+      Temp.DPE = paste0(Temperature,"°C_",DPE),
+      Temperature = as.factor(Temperature),
+      DPE = as.factor(DPE),
+      # Treatment. = as.numeric(Treatment == "Exposed"),
+      Temperature. = as.numeric(Temperature),
+      DPE. = as.numeric(DPE)
+    ) %>%
+    tax_transform(trans = "identity", 
+                  rank = ifelse(beta == "gunifrac", "unique", "Genus")
+                  ) %>% 
+    dist_calc(dist = beta) 
+}) %>% 
+  setNames(methods.beta.plot)
+
+beta.plot.con.list <-
+  lapply(beta.dist.mat.con.list, function(beta){
+    beta %>% 
+      ord_calc(method = "CAP", 
+             constraints = c(#"Treatment.", 
+                             "Temperature.", 
+                             "DPE."
+                             )) %>%
+      ord_plot(fill = "Temp.DPE", shape = 22, size = 3,
+               constraint_vec_style = vec_constraint(linewidth = 2),
+               constraint_lab_style = constraint_lab_style(alpha = 0.8, size = 5)
+               ) +
+          scale_fill_manual(values = col.TempDPE, name = "Temp_DPE", breaks = TempDPE.breaks) +
+          scale_shape_manual(values = c(21:25)) +
+          scale_color_manual(values = "black" ) +
+          theme(legend.position = "none")
+}) %>%
+  setNames(methods.beta.plot)
+
+```
+
+
+
+
+
+#### Plots
+
+```{r, fig.width=5, fig.height=4}
+beta.plot.con.list
+```
+
+## Stats
+
+### Permanova
+
+```{r}
+
+beta.perma.list <-
+  lapply(beta.dist.mat.con.list, function(beta){
+    beta %>%
+  dist_permanova(variables = c("Temperature", "DPE"), 
+                 n_perms = 999, 
+                 seed = 123,
+                 n_processes = 8) %>%
+  perm_get()
+}) %>%
+  setNames(methods.beta.plot)
+
+
+
+
+lapply(methods.beta.plot, function(beta){
+    beta.perma.list[[beta]] %>% tidy() %>%
+        as_tibble() %>%
+        mutate(metric = beta, .before = term) %>%
+        mutate(sig = ifelse(p.value <= 0.05, "*", "")) 
+}) %>% bind_rows() %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 4:6, digits = 3) %>%
+    merge_v(j = 1) %>%
+    hline(i = seq(4,8,4), j = NULL, border = NULL, part = "body") %>%
+    # set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("PERMANOVA")) %>%
+    autofit()
+
+```
+
+
+### Dispersion
+
+```{r}
+
+beta.HomDisp.var <- c("Temperature", "DPE")
+
+beta.HomDisp.list <-
+  # Loop through variables
+  lapply(beta.HomDisp.var, function(variable){
+    # Loop through beta diversity metrics
+    lapply(beta.dist.mat.con.list, function(beta){
+      # Run homogeneity of dispersion test
+      betadisper(d = beta@dist, group = data[[variable]])  %>% permutest(pairwise = T, permutations = 999)
+      
+    }) %>% setNames(methods.beta.plot) 
+}) %>% setNames(beta.HomDisp.var)
+
+beta.HomDisp.stats.list <-
+  # Loop through variables
+  lapply(beta.HomDisp.var, function(variable){
+    # Loop through beta diversity metrics
+    lapply(methods.beta.plot, function(beta){
+      # Save stats table
+      beta.HomDisp.list[[variable]][[beta]]$tab %>%
+        as_tibble() %>%
+        mutate(metric = beta,
+               terms = c(variable, "Residuals"),
+               .before = Df) %>%
+        mutate(sig = ifelse(`Pr(>F)` <= 0.05, "*", ""))
+      
+    }) %>% setNames(methods.beta.plot) %>% bind_rows()
+}) %>% setNames(beta.HomDisp.var) %>% bind_rows()
+
+
+beta.HomDisp.stats.list %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 4:6, digits = 3) %>%
+    merge_v(j = 1) %>%
+    hline(i = seq(2,10,2), j = NULL, border = NULL, part = "body") %>%
+    # set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("Homogeneity of Dispersion")) %>%
+    autofit()
+
+
+```
+
+```{r}
+
+beta.HomDisp.data.list <-
+  # Loop through variables
+  lapply(beta.HomDisp.var, function(variable){
+    # Loop through beta diversity metrics
+    lapply(beta.dist.mat.con.list, function(beta){
+      # Run homogeneity of dispersion test
+      betadisper(d = beta@dist, group = data[[variable]])  
+      
+    }) %>% setNames(methods.beta.plot) 
+}) %>% setNames(beta.HomDisp.var)
+
+beta.HomDisp.plot.list <-
+  # Loop through variables
+  lapply(beta.HomDisp.var, function(variable){
+    # Loop through beta diversity metrics
+    lapply(methods.beta.plot, function(beta){
+
+        tibble(Group = beta.HomDisp.data.list[[variable]][[beta]]$group,
+               Distance = beta.HomDisp.data.list[[variable]][[beta]]$distances) %>%
+        ggplot(aes(x = Group, y = Distance)) +
+          geom_boxplot(aes(fill = Group), outlier.shape = NA) +
+          geom_quasirandom(size = 1) +
+          scale_fill_manual(values = col.list[[variable]]) +
+          scale_color_manual(values = col.list[[variable]]) +
+          labs(
+            # title = "",
+            caption = paste0(beta," (Exposed)"),
+            x = variable,
+            y = "Distance to centroid"
+          ) +
+        theme(legend.position = "bottom") 
+      
+    }) %>% setNames(methods.beta.plot) 
+}) %>% setNames(beta.HomDisp.var)
+
+
+```
+
+#### Plots
+
+```{r, fig.width=4, fig.height=3}
+
+beta.HomDisp.plot.list
+
+```

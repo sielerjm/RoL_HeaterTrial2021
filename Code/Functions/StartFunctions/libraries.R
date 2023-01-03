@@ -17,6 +17,8 @@ library(rcompanion)  # Allows us to run transformTukey()
 # # library(readxl)  # Import Excel docs
 # # library(RedoControl)  # Used to determine whether or not to rerun a code chunk
 library(tinytex)  # Knitting and using LaTeX formatting
+library(DT)  # microViz rec 
+library(scales)  # Normalizing values across a given scale
 
 
 # Plotting ----------------------------------------------------------------
@@ -28,7 +30,8 @@ library(ggrepel)  # Adds label buffering to labels so they don't overlap, geom_l
 # # library(ggpubr)
 # # library(gridExtra)  # Miscellaneous Functions for "Grid" Graphics
 library(RColorBrewer)  # Making and using pretty color palettes
-library(rstatix)
+library(rstatix) 
+library(ComplexHeatmap)  # microViz rec 
 
 
 # Microbiome --------------------------------------------------------------
@@ -38,6 +41,9 @@ library(phyloseqCompanion)  # Helper functions for phyloseq
 library(vegan)  # Ecological analysis
 library(ANCOMBC)  # Differntial abundance, composition
 library(microbiome)
+library(corncob)   # microViz rec 
+library(ggraph)  # microViz rec 
+library(microViz)
 
 
 # Statistics --------------------------------------------------------------
@@ -63,3 +69,13 @@ library(multcomp)  # Multiple comparison tests
 # KEEP AS LAST LIBRARY TO LOAD --------------------------------------------
 # Load last because of potential conflicting function names in previous libs
 library(tidyverse)  # Making your code look pretty and tidy
+
+
+
+
+# Install packages (placeholder)
+
+# BiocManager::install(c("library(scales)"))
+
+
+

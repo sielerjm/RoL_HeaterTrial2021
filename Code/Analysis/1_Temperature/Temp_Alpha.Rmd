@@ -1,0 +1,627 @@
+---
+title: "Temperature: Alpha Diversity Analysis"
+author: "Michael Sieler"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Global Variables
+
+This chunk of code grabs the relevant data frames/tables generated from the `microbiomeProcessing.R` script for analysis.
+
+```{r}
+
+df.conT0TF %>%
+  filter(DPE == 0) %>%
+  group_by(Temperature, Treatment) %>%
+  count()
+
+data <- df.conT0TF
+data.alpha <- dt.alphaPlus.conT0TF.melt
+ps.obj <- ps.conT0TF
+dist <- distList.conT0TF
+# data.diffAb <- diffAb.conT0TF
+
+data.alpha <- 
+  data.alpha %>%
+    mutate(Temperature = as.factor(Temperature),
+           DPE = as.factor(DPE)
+           )
+
+
+levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c(28, 32, 35))
+data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
+data.alpha$Temperature
+
+levels(data.alpha$DPE) <- factor(levels(data.alpha$DPE), levels = c(0, 14, 21, 28, 42))
+data.alpha$DPE <- relevel(factor(data.alpha$DPE), ref = "0")
+data.alpha$DPE
+```
+
+### Alpha Diversity
+
+Saves images to following directory
+
+```{r}
+
+tmp.path <- "Temp/Alpha"
+# Plot settings
+gg_record(dir = file.path(path.results, tmp.path),
+          device = "png",
+          width = 5,
+          height = 5,
+          units = "in"
+          )
+
+
+```
+
+#### Temp
+
+```{r Temp_Alpha, fig.width=5, fig.height=4.5}
+
+# library(multcomp)
+# Source: https://stats.stackexchange.com/a/60361
+# Source: https://cran.r-project.org/web/packages/multcomp/vignettes/multcomp-examples.pdf
+
+tukey.test.list <- lapply(methods.alpha, function(alpha){
+  summary(multcomp::glht(glm(formula = Alpha.Score ~ -1 + Temperature, 
+                             data = data.alpha %>% filter(Alpha.Metric == alpha),
+                             family = "quasibinomial"), 
+                             linfct = mcp(Temperature = "Tukey")) ) %>% 
+  tidy() %>%
+  separate(contrast, c('group1', 'group2'), sep = " - ") %>%
+  select(-c(null.value)) %>%
+  rename(p.adj = adj.p.value) %>%
+  mutate(p.adj.signif = case_when(p.adj < 0.05 ~ "*",
+                                  p.adj >= 0.05 ~ "ns")) %>%
+  mutate(`.y.` = "Alpha.Score", .after = 1) %>%
+  mutate(metric = alpha, .before = 1)
+})
+
+
+plot.sig.labs <- lapply(methods.alpha, function(alpha){ 
+  tukey.test.list[[alpha]] %>% 
+  as_tibble() %>% 
+  select(`.y.`, group1, group2, p.adj.signif)
+})
+
+
+numStatSigComp(plot.sig.labs[["Simpson"]])
+seqStatSigComp(plot.sig.labs[["Simpson"]])
+tail(seqStatSigComp(plot.sig.labs[["Simpson"]]), n = 1)
+
+lapply(methods.alpha, function(alpha){ 
+  seqStatSigComp(plot.sig.labs[[alpha]])
+})
+
+lapply(methods.alpha, function(alpha){ 
+  data.alpha %>%
+  filter(Alpha.Metric == alpha) %>%
+    ggplot(aes(x = Temperature, 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = Temperature), outlier.shape = NA) +
+    geom_quasirandom(size = 1) +
+    scale_fill_manual(values = col.Temp) +
+    scale_color_manual(values = col.Temp) + 
+    labs(
+      # title = "",
+      caption = paste0(alpha," (Controls)"),
+      # caption = paste0(alpha),
+      x = "Temperature",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "bottom")
+})
+
+
+
+# Stats
+
+# Build GLM Model
+mod.list <- lapply(methods.alpha, function(alpha){
+  glm( formula = "Alpha.Score ~ Temperature",
+       data = subset(data.alpha, Alpha.Metric == alpha),
+       family = "quasibinomial")
+}) %>% setNames(methods.alpha)
+
+# Model Output
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% 
+    tidy() %>%
+    mutate(metric = x, .before = 1) %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+  flextable() %>%
+  colformat_double(j = 3:5, digits = 3) %>%
+  merge_v(j = 1)  %>%
+  set_formatter(values = list("p.value" = p_val_format) ) %>%
+  hline(i = c(3,6,9), j = NULL, border = NULL, part = "body") %>%
+  set_caption(paste0("glm(Alpha.Score ~ Temperature), family = quasibinomial)")) %>%
+  autofit() #%>%
+  # save_as_image(path = file.path(path.results, tmp.path, "GLM-Mod_Alpha-Temperature_Ctrl.png"))
+
+# Anova
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% Anova(type = 2) %>%
+    tidy() %>%
+    mutate(metric = x, .before = 1)  %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 3, digits = 3) %>%
+    merge_v(j = 1) %>%
+    set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("ANOVA( glm(Alpha.Score ~ Temperature), family = quasibinomial) )")) %>%
+    autofit() #%>%
+  # save_as_image(path = file.path(path.results, tmp.path, "ANOVA_Alpha-Temperature_Ctrl.png"))
+
+# Tukey's Pairwise Comparison
+tukey.test.list %>%
+  bind_rows() %>%
+  flextable() %>%
+  align(j = 3:6, align = "right") %>%
+  colformat_double(j = 6:9, digits = 3) %>%
+  merge_v(j = 1) %>%
+  set_formatter(values = list("adj.p.value" = p_val_format) ) %>%
+  hline(i = c(3,6,9), j = NULL, border = NULL, part = "body") %>%
+  set_caption(paste0("Pairwise Tukey's HSD, p.adj: Dunnett. glm(Alpha.Score ~ Temperature), family = quasibinomial)")) %>%
+  autofit() #%>%
+  # save_as_image(path = file.path(path.results, tmp.path, "Tukeys_Alpha-Temperature_Ctrl.png"))
+
+
+
+
+```
+
+#### Temp:DPE
+
+
+```{r Temp-DPE_Alpha, fig.width=5, fig.height=4.5}
+
+tukey.test.list <- lapply(methods.alpha, function(alpha){
+  test <- data.alpha %>%
+    filter(Alpha.Metric == alpha) %>%
+    group_by(Temperature) %>%
+    nest(data = -Temperature) %>%
+    mutate(test = map(.x=data, 
+                      ~summary(multcomp::glht(glm(formula = Alpha.Score ~ -1 + DPE, 
+                           data = .x,
+                           family = "quasibinomial"), 
+                           linfct = mcp(DPE = "Tukey")) )%>% tidy
+                      )) %>%
+    unnest(test) %>%
+    separate(contrast, c('group1', 'group2'), sep = " - ") %>%
+    select(-c(data, null.value)) %>%
+    rename(p.adj = adj.p.value) %>%
+    mutate(p.adj.signif = case_when(p.adj < 0.05 ~ "*",
+                                    p.adj >= 0.05 ~ "ns")) %>%
+    mutate(`.y.` = "Alpha.Score", .after = 1) %>%
+    arrange(Temperature)%>%
+  mutate(metric = alpha, .before = 1)
+})
+
+
+
+plot.sig.labs <- lapply(methods.alpha, function(alpha){ 
+  tukey.test.list[[alpha]] %>% 
+  as_tibble() %>% 
+  select(Temperature, `.y.`, group1, group2, p.adj.signif)
+})
+
+
+
+
+lapply(methods.alpha, function(alpha){ 
+  data.alpha %>%
+  filter(Alpha.Metric == alpha) %>%
+    ggplot(aes(x = DPE, 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = Temperature)) +
+    geom_quasirandom(size = 1) +
+    facet_grid(. ~ Temperature, scale = "free") +
+    scale_fill_manual(values = col.Temp) +
+    # scale_color_manual(values = pal.Set1) +
+    labs(
+      # title = "",
+      caption = paste0(alpha," (Controls)"),
+      x = "Days Post Exposure (DPE)",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "none")
+
+})
+  
+
+# Stats
+
+# Build GLM Model
+mod.list <- lapply(methods.alpha, function(alpha){
+  glm( formula = "Alpha.Score ~ Temperature*DPE",
+       data = subset(data.alpha, Alpha.Metric == alpha),
+       family = "quasibinomial")
+}) %>% setNames(methods.alpha)
+
+ # Model Output
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% 
+    tidy() %>%
+    mutate(metric = x, .before = 1) %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+  flextable() %>%
+  colformat_double(j = 3:5, digits = 3) %>%
+  merge_v(j = 1)  %>%
+  set_formatter(values = list("p.value" = p_val_format) ) %>%
+  hline(i = seq(4,12,4), j = NULL, border = NULL, part = "body") %>%
+  set_caption(paste0("glm(Alpha.Score ~ Temperature*Time), family = quasibinomial)")) #%>%
+  # save_as_image(path = file.path(path.figures, tmp.path, "GLM_Alpha-TempDPE_Ctrl.png"))
+
+# Anova
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% Anova(type = 2) %>%
+    tidy() %>%
+    mutate(metric = x, .before = 1)  %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 3, digits = 3) %>%
+    merge_v(j = 1) %>%
+    hline(i = c(3,6,9), j = NULL, border = NULL, part = "body") %>%
+    set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("ANOVA( glm(Alpha.Score ~ Temperature*Time), family = quasibinomial) )")) %>%
+    autofit() #%>%
+  # save_as_image(path = file.path(path.figures, tmp.path, "ANOVA_Alpha-TempDPE_Ctrl.png"))
+
+# Tukey's Pairwise Comparison
+tukey.test.list %>%
+  bind_rows() %>%
+  flextable() %>%
+  align(j = 3:6, align = "right") %>%
+  colformat_double(j = 6:9, digits = 3) %>%
+  merge_v(j = c(1,2)) %>%
+  set_formatter(values = list("p.adj" = p_val_format) ) %>%
+  hline(i = seq(10,110, by = 10), j = NULL, border = NULL, part = "body") %>%
+  set_caption(paste0("Pairwise Tukey's HSD, p.adj: Dunnett. glm(Alpha.Score ~ Temperature:DPE), family = quasibinomial)")) %>%
+  autofit() #%>%
+  # save_as_image(path = file.path(path.figures, tmp.path, "Tukeys_Alpha-TempDPE_Ctrl.png"))
+
+
+```
+
+### Troubleshooting
+
+Check for possible confounding factors that might influence the data.
+
+#### Tank Effects?
+
+##### At 0 DPE
+
+```{r, fig.width=5, fig.height=2}
+
+lapply(methods.alpha, function(alpha){ 
+  data.alpha %>%
+  filter(Alpha.Metric == alpha &
+         DPE == 0) %>%
+    ggplot(aes(x = factor(Tank.ID), 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = factor(Tank.ID))) +
+    geom_quasirandom(size = 1) +
+    facet_grid(. ~ Temperature, scale = "free") +
+    scale_fill_manual(values = c(pal.Set1, pal.Dark2)) +
+    scale_color_manual(values = c(pal.Set1, pal.Dark2)) +
+    labs(
+      # title = "",
+      caption = paste0(alpha," (Controls, 0 DPE)"),
+      x = "Tanks",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "none")
+
+})
+
+mod.list <- lapply(methods.alpha, function(alpha){
+  glm( formula = "Alpha.Score ~ Temperature + Tank.ID",
+       data = subset(data.alpha, Alpha.Metric == alpha & DPE == 0),
+       family = "quasibinomial")
+}) %>% setNames(methods.alpha)
+
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% Anova(type = 2) %>%
+    tidy() %>%
+    mutate(metric = x, .before = 1)  %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 3, digits = 3) %>%
+    merge_v(j = 1) %>%
+    hline(i = c(2,4,6), j = NULL, border = NULL, part = "body") %>%
+    set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("ANOVA( glm(Alpha.Score ~ Temperature + Tank.ID), family = quasibinomial) )")) %>%
+    autofit()
+
+
+```
+
+
+##### Across all control samples and DPE
+
+```{r, fig.width=5, fig.height=2.25}
+
+data.alpha %>%
+  group_by(Alpha.Metric, Tank.ID) %>%
+  count()
+
+lapply(methods.alpha, function(alpha){ 
+  data.alpha %>%
+  filter(Alpha.Metric == alpha) %>%
+    ggplot(aes(x = factor(Tank.ID), 
+               y = Alpha.Score
+               )) +
+    geom_boxplot(aes(fill = factor(Tank.ID))) +
+    geom_quasirandom(aes(color = Treatment), shape =21, size = 1) +
+    facet_grid(. ~ Temperature, scale = "free") +
+    scale_fill_manual(values = c(pal.Set1, pal.Dark2)) +
+    scale_color_manual(values = c("black", "grey")) +
+    labs(
+      # title = "",
+      caption = paste0(alpha," (Controls, 0-42 DPE)"),
+      x = "Tanks",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "none")
+
+})
+
+mod.list <- lapply(methods.alpha, function(alpha){
+  glm( formula = "Alpha.Score ~ Temperature + Tank.ID",
+       data = subset(data.alpha, Alpha.Metric == alpha),
+       family = "quasibinomial")
+}) %>% setNames(methods.alpha)
+
+lapply(methods.alpha, function(x){
+  mod.list[[x]] %>% Anova(type = 2) %>%
+    tidy() %>%
+    mutate(metric = x, .before = 1)  %>%
+      mutate(sig = ifelse(p.value <= 0.05, "*", ""))
+}) %>% bind_rows() %>%
+    flextable() %>%
+    # align(j = 3:6, align = "right") %>%
+    colformat_double(j = 3, digits = 3) %>%
+    merge_v(j = 1) %>%
+    hline(i = c(2,4,6), j = NULL, border = NULL, part = "body") %>%
+    set_formatter(values = list("p.value" = p_val_format) ) %>%
+    set_caption(paste0("ANOVA( glm(Alpha.Score ~ Temperature + Tank.ID), family = quasibinomial) )")) %>%
+    autofit()
+
+
+```
+
+## Testing MicroViz Functions
+
+### Working
+
+
+```{r}
+test <-
+  ps.obj %>%
+    ps_calc_diversity(
+    rank = "Taxon",
+    index = "shannon",
+    exp = T
+    ) %>% ps_calc_diversity(
+    rank = "Taxon",
+    index = "inverse_simpson"
+    ) %>% ps_calc_richness(
+    rank = "Taxon",
+    ) %>% ps_calc_diversity.phy() %>%
+    ps_mutate(across(contains("_Taxon"), rescale_values, .names = "{.col}_norm"))
+
+test %>% sam_data() 
+
+```
+
+
+
+
+
+
+
+
+### Testing
+
+
+```{r}
+
+test.ps.obj <- ps.obj
+
+df.ps.phy <- picante::pd(samp = otu.matrix(ps.obj), tree = phyloseq::phy_tree(ps.obj)) %>% 
+  # as_tibble(
+  #   # rownames = "Sample"
+  #   ) %>%
+  rename(phylogenetic = PD,
+         richness = SR) %>%
+  select(-richness)
+
+df.ps.phy[[".rownames."]] <- rownames(df.ps.phy)
+
+test.ps.obj %>% sample_data()
+df.ps.phy
+
+test.ps.phy.join <- 
+  test.ps.obj %>%
+    ps_select(-Sample) %>%
+    ps_join(
+        x = ., y = df.ps.phy, type = "left", .keep_all_taxa = TRUE,
+        match_sample_names = ".rownames.", keep_sample_name_col = FALSE
+      )
+
+test.ps.phy.join %>% sample_data()
+  
+```
+
+
+```{r}
+
+
+test %>%
+  ps_mutate(phylogenetic_Taxon_norm = scales::rescale(phylogenetic_Taxon, to = c(0, 1)) ) %>%
+  sample_data()
+
+test %>%
+  sample_data() %>%
+  as_tibble() %>%
+  select(contains("_Taxon")) %>%
+  map(scales::rescale(., range = c(0, 1)) )
+
+sample.data.frame(test) %>%
+  mutate(across(contains("_Taxon"), rescale_values, .names = "{.col}_norm"))
+
+test <- 
+test %>%
+  ps_mutate(across(contains("_Taxon"), rescale_values, .names = "{.col}_norm")) #%>% sample_data()
+
+test 
+
+rescale_values <- function(x) {
+  
+  ### Example Function ###
+  # 
+  # test %>%
+  #   ps_mutate(across(contains("_Taxon"),  ## Grab columns with this substring
+  #                    rescale_values, ## THIS is the function
+  #                    .names = "{.col}_norm"))  ## add columns and rename appending '_norm" 
+  # 
+  #######
+  
+  if (nortest::ad.test(x)$p.value <= 0.05) {
+      # If the alpha scores do not follow a normal distribution, then you transform it using Tukey's (not Turkey's) power of ladders
+  #   - This will transform your data as closely to a normal distribution
+  
+  # Sub-function to transform data that isn't normally distributed using Tukey's (not Turkey's) power of ladders
+  #   - Check this out for more info: ?transformTukey()
+  x.trans <- rcompanion::transformTukey(x, plotit = F, quiet = F, statistic = 2)
+  
+  x.trans.norm <- (x.trans-min(x.trans))/(max(x.trans)-min(x.trans))   # Fixes normalization 0 to 1
+  
+  # Runs ad.test again to see if data returns higher than 0.05 p-value, if true then it transforms your data along tukey's power of ladders
+  
+  if (nortest::ad.test(x.trans.norm)$p.value < 0.05) {
+    
+    x.trans.norm <- (x.trans.norm - min(x.trans.norm ))/(max(x.trans.norm )-min(x.trans.norm )) 
+    
+      # Sends your data back normalized from 0 to 1
+      return(x.trans.norm)
+    
+    # If your data is now normally distributed it will return < 0.05 p.val, and then it uses max/min values to distribute the scores along a 0 and 1 scale.
+  } else {
+    
+    # Sends your data back normalized from 0 to 1
+    return(x.trans.norm)
+  }
+  
+  # If your data is already normally distributed, then it uses max/min values to distribute the scores along a 0 and 1 scale.
+  } else {
+    
+    x.norm <- (x - min(x ))/(max(x )-min(x ))  # Fixes normalization 0 to 1
+    # print(paste0("Finished: ", alpha))  # Letting you know what it's working on
+    return(x.norm)
+  }
+    
+}
+
+test %>%
+  sample.data.frame() %>%
+  pivot_longer(.,cols = contains("_Taxon_norm"), names_to = "alpha.metric", values_to = "alpha.score") %>%
+  ggplot(aes(x = alpha.score)) + 
+  geom_histogram(aes(fill = alpha.metric))
+
+test %>%
+  sample.data.frame() %>%
+  pivot_longer(.,cols = contains("_Taxon_norm"), names_to = "alpha.metric", values_to = "alpha.score") %>%
+  group_by(alpha.metric) %>%
+  summarize(min = min(alpha.score),
+            max = max(alpha.score),
+            mean = mean(alpha.score),
+            median = median(alpha.score)
+            )
+
+test %>%
+  sample.data.frame() %>%
+  filter(Treatment == "Control") %>%
+  pivot_longer(.,cols = ends_with("_Taxon_norm"), names_to = "alpha.metric", values_to = "alpha.score") %>%
+  filter(alpha.metric == "phylogenetic_Taxon_norm") %>%
+  ggplot(aes(x = factor(DPE), y = alpha.score, fill = factor(DPE))) + 
+  geom_boxplot()# +
+  # facet_grid(factor(Temperature) ~ alpha.metric)
+
+test %>%
+  sample.data.frame() %>%
+  filter(Treatment == "Control") %>%
+  pivot_longer(.,cols = ends_with("_Taxon_norm"), names_to = "alpha.metric", values_to = "alpha.score") %>%
+  # filter(alpha.metric == "phylogenetic_Taxon_norm") %>%
+  ggplot(aes(x = factor(DPE), y = alpha.score, fill = factor(DPE))) + 
+  geom_boxplot() +
+  facet_grid(factor(Temperature) ~ alpha.metric)
+
+```
+
+
+
+# Test function
+
+```{r}
+
+test <-
+  ps.obj %>%
+    ps_calc_diversity(
+    rank = "Taxon",
+    index = "shannon",
+    exp = T
+    ) %>% ps_calc_diversity(
+    rank = "Taxon",
+    index = "inverse_simpson"
+    ) %>% ps_calc_richness(
+    rank = "Taxon",
+    ) %>% ps_calc_diversity.phy() %>%
+    ps_mutate(across(contains("_Taxon"), rescale_values, .names = "{.col}_norm"))
+
+test %>% sam_data() 
+  
+
+
+
+
+```
+
+
+```{r}
+
+
+# Load the phyloseq object
+ps.obj <- readRDS("phyloseq_object.rds")
+
+# Extract the OTU table from the phyloseq object
+otu_table <- otu_table(ps.obj)
+
+# Calculate the alpha diversity using Shannon Index
+alpha_diversity <- diversity(ps.obj, index = "shannon")
+
+# Print the results
+print(alpha_diversity)
+
+
+```
+
+
+

@@ -18,14 +18,14 @@ output:
 This is a template document to get you started. 
 
 ## Troubleshooting:
-* Make sure you have all libraries installed, otherwise the loading functions will fail
+* Make sure you have all libraries installed, otherwise the loading functions will fail.
 * Path names will fail if your `.Rproj` file is not located in the top level of you project repository
   * For example, it should be located here: `/Path_to_Project/ProjectName/<name_of_project>.Rproj`
 
 
 ## Setup environment
 
-This is an example chunk of code for setting up your environment prior to running your analysis scripts. You'll want to run this at the top of your analysis scripts.
+This chunk of code will need to be run prior to running any of the scripts in `Code/Analysis` directory.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)  # Sets default knit settings for document
@@ -40,8 +40,6 @@ source(paste0(proj.path,"/Code/Functions/StartFunctions/sourceFolder.R"))
 sourceFolder(paste0(proj.path,"/Code/Functions"), T)
 
 
-# Load Starting Scripts/Functions
-start.files <- paste0(file.path(proj.path, list.files(paste0(proj.path,"/Code/Functions/StartFunctions"))))
 
 # Important Paths
 path.code <- paste0(proj.path,"/Code")
@@ -49,7 +47,24 @@ path.data <- paste0(proj.path,"/Data")
 path.input <- paste0(proj.path,"/Data/Input") 
 path.results <- paste0(proj.path,"/Results") 
 
-# Save Environment
-# save_env(objects.path, ID = analysis.ID, extra_info = "_pipeline_output")
+# Analysis ID
+analysis.ID <- paste0(
+  "ZF-Heater2022-v2_",  # Data subsetted? If so, how? "<name>_"
+  Sys.Date()#,  # Date of analysis
+  # "_rf"  # Extra flags to differentiate analysis from prior analyses
+)
+
+# Load Environment
+## This loads all the data required for analysis.
+
+load(file.path(path.data,
+               "R_objects/RoL_HeaterTrial_PostMicrobiomeProcessing_ENV_2022-12-14.RData"
+               ))
+
 
 ```
+
+
+## Analyses
+
+After successfully loading libraries and data, you can run the individual analylsis scripts found within `Code/Analysis`.
