@@ -35,11 +35,11 @@ data.alpha <-
 
 levels(data.alpha$Temperature) <- factor(levels(data.alpha$Temperature), levels = c(28, 32, 35))
 data.alpha$Temperature <- relevel(factor(data.alpha$Temperature), ref = "28")
-data.alpha$Temperature
+# data.alpha$Temperature
 
 levels(data.alpha$DPE) <- factor(levels(data.alpha$DPE), levels = c(0, 14, 21, 28, 42))
 data.alpha$DPE <- relevel(factor(data.alpha$DPE), ref = "0")
-data.alpha$DPE
+# data.alpha$DPE
 ```
 
 ### Alpha Diversity
@@ -412,7 +412,7 @@ lapply(methods.alpha, function(x){
 ### Working
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 test <-
   ps.obj %>%
     ps_calc_diversity(
