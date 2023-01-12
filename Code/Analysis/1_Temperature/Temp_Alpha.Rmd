@@ -411,6 +411,9 @@ lapply(methods.alpha, function(x){
 
 ### Working
 
+#### Calc Alpha Scores
+
+Run alpha diversity functions and then normalize results from 0 to 1.
 
 ```{r message=FALSE, warning=FALSE}
 test <-
@@ -425,11 +428,113 @@ test <-
     ) %>% ps_calc_richness(
     rank = "Taxon",
     ) %>% ps_calc_diversity.phy() %>%
-    ps_mutate(across(contains("_Taxon"), rescale_values, .names = "{.col}_norm"))
+    ps_mutate(across(contains("_Taxon"), norm_alpha_score.2, .names = "{.col}_norm"))
 
 test %>% sam_data() 
 
+view(sample.data.frame(test))
+
+ps.obj@sam_data %>%
+  as.data.frame(ps.obj@sam_data) %>%
+  mutate(across(contains("_Taxon"), norm_alpha_score.2, .names = "{.col}_norm"))
+
 ```
+
+#### Plot
+
+Temperature
+
+```{r}
+
+sample.data.frame(test) %>%
+    ggplot(aes(x = Temperature, 
+               y = phylogenetic_Taxon_norm
+               )) +
+    geom_boxplot(aes(fill = factor(Temperature)), outlier.shape = NA) +
+    geom_quasirandom(size = 1) +
+    scale_fill_manual(values = col.Temp, name = "Temperature") +
+    scale_color_manual(values = col.Temp) + 
+    labs(
+      # title = "",
+      # caption = paste0(alpha," (Controls)"),
+      # caption = paste0(alpha),
+      x = "Temperature",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "bottom")
+
+
+
+
+```
+
+
+Temperature + Time
+
+```{r}
+
+
+sample.data.frame(test) %>%
+    ggplot(aes(x = factor(DPE), 
+               y = inverse_simpson_Taxon_norm
+               )) +
+    geom_boxplot(aes(fill = factor(Temperature)), outlier.shape = NA) +
+    geom_quasirandom(size = 1) +
+    facet_grid(. ~ Temperature, scale = "free") +
+    scale_fill_manual(values = col.Temp, name = "Temperature") +
+    # scale_color_manual(values = col.Temp) + 
+    labs(
+      # title = "",
+      # caption = paste0(alpha," (Controls)"),
+      # caption = paste0(alpha),
+      x = "Temperature",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "bottom")
+
+
+
+sample.data.frame(test) %>%
+    ggplot(aes(x = factor(DPE), 
+               y = phylogenetic_Taxon_norm
+               )) +
+    geom_boxplot(aes(fill = factor(Temperature)), outlier.shape = NA) +
+    geom_quasirandom(size = 1) +
+    facet_grid(. ~ Temperature, scale = "free") +
+    scale_fill_manual(values = col.Temp, name = "Temperature") +
+    # scale_color_manual(values = col.Temp) + 
+    labs(
+      # title = "",
+      # caption = paste0(alpha," (Controls)"),
+      # caption = paste0(alpha),
+      x = "Temperature",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "bottom")
+
+
+sample.data.frame(test) %>%
+    ggplot(aes(x = factor(Temperature), 
+               y = inverse_simpson_Taxon_norm
+               )) +
+    geom_boxplot(aes(fill = factor(Temperature)), outlier.shape = NA) +
+    geom_quasirandom(size = 1) +
+    facet_grid(. ~ DPE, scale = "free") +
+    scale_fill_manual(values = col.Temp, name = "Temperature") +
+    # scale_color_manual(values = col.Temp) + 
+    labs(
+      # title = "",
+      # caption = paste0(alpha," (Controls)"),
+      # caption = paste0(alpha),
+      x = "Temperature",
+      y = "Alpha Score (normalized)"
+    ) +
+  theme(legend.position = "bottom")
+
+
+```
+
+
 
 
 

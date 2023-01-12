@@ -113,7 +113,7 @@ norm_alpha_score.2 <- function(x) {
   # 
   # test %>%
   #   ps_mutate(across(contains("_Taxon"),  ## Grab columns with this substring
-  #                    rescale_values, ## THIS is the function
+  #                    norm_alpha_score.2, ## THIS is the function
   #                    .names = "{.col}_norm"))  ## add columns and rename appending '_norm" 
   # 
   #######
